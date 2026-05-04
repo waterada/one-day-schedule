@@ -773,6 +773,14 @@
         setInterval(()=>{ document.querySelectorAll('.now-line').forEach(el=>el.remove()); renderPlaced(); }, 60000);
     }
     init();
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js').catch(err => {
+                console.warn('SW registration failed:', err);
+            });
+        });
+    }
 </script>
 
 </body>
