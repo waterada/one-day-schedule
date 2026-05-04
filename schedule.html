@@ -3,8 +3,18 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>今日のスケジュール</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4ECDC4">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="スケジュール">
+    <link rel="apple-touch-icon" href="icons/icon-180.png">
+
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -52,8 +62,10 @@
         .panel {
             width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
             position: sticky; top: 14px; align-self: flex-start;
-            max-height: calc(100vh - 28px); overflow-y: auto;
+            height: calc(100vh - 28px);
         }
+        .panel .card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .panel .task-list { flex: 1; min-height: 0; overflow-y: auto; }
 
         .hint {
             border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 800;
@@ -74,22 +86,25 @@
         .icon-row { display: flex; flex-wrap: wrap; gap: 4px; }
         .idot { width: 26px; height: 26px; border-radius: 7px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
         .idot.sel { border-color: #2D2D2D; transform: scale(1.15); background: white; }
-        .btn-add { background: #4ECDC4; color: white; border: none; border-radius: 9px; padding: 8px; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 13px; cursor: pointer; width: 100%; }
 
         /* task list */
         .task-list { padding: 7px; display: flex; flex-direction: column; gap: 5px; }
+        .tcw { transition: transform 0.18s ease; }
+        .tcw.dragging { transition: none; z-index: 10; position: relative; box-shadow: 0 6px 16px rgba(0,0,0,0.25); border-radius: 9px; }
         .tchip {
             padding: 9px 10px; border-radius: 9px; font-size: 13px; font-weight: 800; color: white;
-            cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; display: flex; align-items: center; gap: 4px;
             transition: transform .1s;
         }
         .tchip.active { outline: 3px solid #2D2D2D; outline-offset: 2px; }
         .tchip .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tchip .tdel { background: rgba(255,255,255,0.3); border: none; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .tchip .tedit { background: rgba(255,255,255,0.3); border: none; color: white; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .tchip .thandle { background: rgba(255,255,255,0.3); border: none; color: white; width: 28px; height: 28px; border-radius: 6px; font-size: 14px; cursor: grab; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; }
+        .tchip .thandle:active { cursor: grabbing; background: rgba(255,255,255,0.5); }
 
-        /* done */
-        .done-list { padding: 7px; display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
-        .done-chip { padding: 5px 9px; border-radius: 7px; font-size: 12px; font-weight: 700; color: white; opacity: .55; text-decoration: line-through; }
+        /* new task button + done counter */
+        .btn-new-task { background: #4ECDC4; color: white; border: none; border-radius: 12px; padding: 12px; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(78,205,196,0.3); }
+        .done-counter { background: white; border-radius: 12px; padding: 10px 12px; text-align: center; font-weight: 800; font-size: 13px; color: #6ab04c; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
         .empty { color: #bbb; font-size: 12px; font-weight: 600; text-align: center; padding: 6px; }
 
         /* edit modal */
@@ -135,29 +150,31 @@
         <div class="tl-body" id="tl-body"></div>
     </div>
     <div class="panel">
-        <div class="hint" id="hint">タスクを選んで<br>開始時間をタップ</div>
+        <div class="hint" id="hint" style="display:none;"></div>
 
-        <div class="card">
-            <div class="card-head">タスクを作る</div>
-            <div class="add-form">
-                <input class="task-input" id="task-input" placeholder="やること..." maxlength="20">
-                <div class="icon-row" id="icon-row"></div>
-                <div class="color-row" id="color-row"></div>
-                <button class="btn-add" onclick="addTask()">＋ 追加</button>
-            </div>
-        </div>
+        <button class="btn-new-task" onclick="openNewTaskModal()">＋ 新しいタスク</button>
 
         <div class="card">
             <div class="card-head">タスク一覧</div>
             <div class="task-list" id="task-list"><div class="empty">タスクを作ってね</div></div>
         </div>
 
-        <div class="card">
-            <div class="card-head">おわった</div>
-            <div class="done-list" id="done-list"><div class="empty">まだないよ</div></div>
-        </div>
+        <div class="done-counter" id="done-counter">🌟 今日 0 こ おわった</div>
 
     </div>
+</div>
+
+<div class="modal-bg" id="new-task-modal-bg" onclick="closeNewTaskModal()"></div>
+<div class="modal-card" id="new-task-modal-card">
+    <div class="modal-name" id="new-task-title" style="background:#4ECDC4;">新しいタスク</div>
+    <div class="add-form">
+        <input class="task-input" id="task-input" placeholder="やること..." maxlength="24">
+        <div class="icon-row" id="icon-row"></div>
+        <div class="color-row" id="color-row"></div>
+    </div>
+    <button class="modal-btn close-btn" id="task-save-btn" onclick="saveTaskFromModal()">＋ 追加</button>
+    <button class="modal-btn del-btn" id="task-edit-del-btn" onclick="deleteTaskFromModal()" style="display:none;">✕ 削除</button>
+    <button class="modal-btn" style="background:#eee;color:#666;" onclick="closeNewTaskModal()">キャンセル</button>
 </div>
 
 <div class="modal-bg" id="modal-bg" onclick="closeEdit()"></div>
@@ -200,17 +217,43 @@
     const FINE_STEP_MIN = 5; // minutes for ± buttons in edit modal
 
     const COLORS = ['#FF6B6B','#FF8E53','#FFB347','#FFD93D','#6ab04c','#4ECDC4','#45B7D1','#5C7AEA','#C3B1E1','#E08DAC'];
-    const ICONS = ['🍚','📝','🧸','🎮','🍰','👗','🛁','🪥','😴'];
-    const ICON_NAMES = {
-        '🍚':'ごはん','📝':'勉強','🧸':'自由','🎮':'ゲーム',
-        '🍰':'おやつ','👗':'きがえ','🛁':'おふろ','🪥':'はみがき','😴':'ねる'
-    };
+    const PALETTE_ICONS = [
+        {emoji:'🍚', name:'ごはん'},
+        {emoji:'📝', name:'勉強'},
+        {emoji:'🧸', name:'自由'},
+        {emoji:'🎮', name:'ゲーム'},
+        {emoji:'🍰', name:'おやつ'},
+        {emoji:'👗', name:'きがえ'},
+        {emoji:'🛁', name:'おふろ'},
+        {emoji:'🪥', name:'はみがき'},
+        {emoji:'😴', name:'ねる'}
+    ];
 
     let tasks  = JSON.parse(localStorage.getItem('tsk5') || '[]');
     let placed = JSON.parse(localStorage.getItem('plc5') || '[]');
+
+    // ── one-time migration: merge legacy `icon` field into `name` ──
+    (function migrate(){
+        let dirty = false;
+        tasks.forEach(t => {
+            if(t.icon){ t.name = t.icon + ' ' + t.name; delete t.icon; dirty = true; }
+        });
+        placed.forEach(p => {
+            if(p.icon){ p.name = p.icon + ' ' + p.name; delete p.icon; dirty = true; }
+        });
+        if(localStorage.getItem('icn5') !== null){
+            localStorage.removeItem('icn5'); dirty = true;
+        }
+        if(dirty){
+            localStorage.setItem('tsk5', JSON.stringify(tasks));
+            localStorage.setItem('plc5', JSON.stringify(placed));
+        }
+    })();
+
     let selColor = COLORS[0];
-    let selIcon  = ICONS[0];
+    let selIcon  = null;
     let selTask  = null;
+    let editingTaskId = null;
     let tapStep  = 0;   // 0=idle 1=waiting for end tap
     let tapStart = null;
     let editId   = null;
@@ -218,6 +261,11 @@
     function save(){
         localStorage.setItem('tsk5', JSON.stringify(tasks));
         localStorage.setItem('plc5', JSON.stringify(placed));
+    }
+    function pickUnusedColor(){
+        const used = new Set(tasks.map(t => t.color));
+        const unused = COLORS.find(c => !used.has(c));
+        selColor = unused || COLORS[0];
     }
 
     function slotToHour(s){ return START_H + s * 0.25; }
@@ -270,9 +318,9 @@
 
             placed.push({
                 id: Date.now(),
+                srcTaskId: selTask.id,
                 name: selTask.name,
                 color: selTask.color,
-                icon: selTask.icon || '',
                 startH: slotToHour(startSlot),
                 duration: (endSlot - startSlot) * 0.25,
                 done: false
@@ -355,9 +403,13 @@
             const el  = document.createElement('div');
             el.className = 'block' + (p.done ? ' done' : '');
             el.style.cssText = `top:${top}px;height:${h}px;background:${p.color};left:${leftExpr};width:${widthExpr};`;
-            el.innerHTML = `
-      <span class="block-label">${p.icon ? p.icon + ' ' : ''}${p.name}</span>
-      <span class="block-time">${fmt(p.startH)}〜${fmt(p.startH+p.duration)}</span>`;
+            const label = document.createElement('span');
+            label.className = 'block-label';
+            label.textContent = p.name;
+            const time = document.createElement('span');
+            time.className = 'block-time';
+            time.textContent = `${fmt(p.startH)}〜${fmt(p.startH+p.duration)}`;
+            el.appendChild(label); el.appendChild(time);
             el.addEventListener('click', () => openEdit(p.id));
             body.appendChild(el);
         });
@@ -372,13 +424,13 @@
         }
     }
 
-    // ── EDIT MODAL ──
+    // ── EDIT MODAL (placed block) ──
     function openEdit(id){
         editId = id;
         const p = placed.find(x => x.id === id);
         if(!p) return;
         const nameEl = document.getElementById('edit-name');
-        nameEl.textContent = (p.icon ? p.icon + ' ' : '') + p.name;
+        nameEl.textContent = p.name;
         nameEl.style.background = p.color;
         renderEditTimes();
         const dBtn = document.getElementById('done-btn');
@@ -421,7 +473,7 @@
         const p = placed.find(x => x.id === editId);
         if(!p) return;
         p.done = !p.done;
-        save(); renderPlaced(); renderDone();
+        save(); renderPlaced(); renderDoneCounter();
         closeEdit();
     }
 
@@ -429,7 +481,7 @@
         if(!confirm('削除しますか？')) return;
         placed = placed.filter(x => x.id !== editId);
         closeEdit();
-        save(); renderPlaced();
+        save(); renderPlaced(); renderDoneCounter();
     }
 
     function shiftAfter(deltaMin){
@@ -460,40 +512,124 @@
     // ── HINT ──
     function updateHint(){
         const bar = document.getElementById('hint');
-        if(!selTask){ bar.textContent = 'タスクを選んで\n開始時間をタップ'; bar.className='hint'; bar.style.whiteSpace='pre'; return; }
+        if(!selTask){ bar.style.display = 'none'; return; }
+        bar.style.display = '';
         if(tapStep === 0){ bar.innerHTML = `<b>${selTask.name}</b><br>開始時間をタップ`; bar.className='hint'; }
         else             { bar.innerHTML = `<b>${selTask.name}</b><br>${fmt(slotToHour(tapStart))} 〜<br>終了時間をタップ`; bar.className='hint step2'; }
     }
 
     // ── TASKS ──
-    function updateInputPlaceholder(){
-        const inp = document.getElementById('task-input');
-        inp.placeholder = ICON_NAMES[selIcon] || 'やること...';
-    }
-
     function addTask(){
         const inp = document.getElementById('task-input');
-        let name = inp.value.trim();
-        if(!name) name = ICON_NAMES[selIcon] || '';
-        if(!name) return;
-        const t = {id:Date.now(), name, color:selColor, icon:selIcon};
-        tasks.push(t); inp.value=''; save(); renderTaskList(); selectTask(t);
+        let typed = inp.value.trim();
+        if(selIcon && typed.startsWith(selIcon + ' ')) typed = typed.slice(selIcon.length + 1).trim();
+        else if(selIcon && typed === selIcon) typed = '';
+        if(!typed && selIcon) typed = getIconName(selIcon);
+        if(!typed){ inp.focus(); return; }
+        const name = selIcon ? `${selIcon} ${typed}` : typed;
+        const t = {id:Date.now(), name, color:selColor};
+        tasks.push(t); inp.value=''; save();
+        pickUnusedColor(); renderColorRow();
+        renderTaskList(); selectTask(t);
+        closeNewTaskModal();
     }
-    document.getElementById('task-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
+    function openNewTaskModal(){
+        editingTaskId = null;
+        document.getElementById('new-task-title').textContent = '新しいタスク';
+        document.getElementById('task-save-btn').textContent = '＋ 追加';
+        document.getElementById('task-edit-del-btn').style.display = 'none';
+        document.getElementById('task-input').value = '';
+        selIcon = null;
+        pickUnusedColor();
+        renderIconRow(); renderColorRow(); updateInputPlaceholder();
+        document.getElementById('new-task-modal-bg').classList.add('open');
+        document.getElementById('new-task-modal-card').classList.add('open');
+        setTimeout(() => document.getElementById('task-input').focus(), 50);
+    }
+    function openEditTaskModal(t){
+        editingTaskId = t.id;
+        document.getElementById('new-task-title').textContent = 'タスクを変える';
+        document.getElementById('task-save-btn').textContent = '✓ 保存';
+        document.getElementById('task-edit-del-btn').style.display = '';
+        selIcon = detectIconFromName(t.name);
+        selColor = t.color;
+        const stripped = selIcon ? t.name.slice(selIcon.length + 1) : t.name;
+        document.getElementById('task-input').value = stripped;
+        renderIconRow(); renderColorRow(); updateInputPlaceholder();
+        document.getElementById('new-task-modal-bg').classList.add('open');
+        document.getElementById('new-task-modal-card').classList.add('open');
+        setTimeout(() => document.getElementById('task-input').focus(), 50);
+    }
+    function closeNewTaskModal(){
+        document.getElementById('new-task-modal-bg').classList.remove('open');
+        document.getElementById('new-task-modal-card').classList.remove('open');
+        editingTaskId = null;
+    }
+    function saveTaskFromModal(){
+        if(editingTaskId === null) addTask();
+        else applyTaskEdit();
+    }
+    function applyTaskEdit(){
+        const t = tasks.find(x => x.id === editingTaskId);
+        if(!t){ closeNewTaskModal(); return; }
+        const inp = document.getElementById('task-input');
+        let typed = inp.value.trim();
+        if(selIcon && typed.startsWith(selIcon + ' ')) typed = typed.slice(selIcon.length + 1).trim();
+        else if(selIcon && typed === selIcon) typed = '';
+        if(!typed && selIcon) typed = getIconName(selIcon);
+        if(!typed){ inp.focus(); return; }
+        t.name = selIcon ? `${selIcon} ${typed}` : typed;
+        t.color = selColor;
+        placed.forEach(p => {
+            if(p.srcTaskId === t.id){
+                p.name = t.name;
+                p.color = t.color;
+            }
+        });
+        save();
+        renderTaskList(); renderPlaced();
+        closeNewTaskModal();
+    }
+    function deleteTaskFromModal(){
+        const t = tasks.find(x => x.id === editingTaskId);
+        if(!t){ closeNewTaskModal(); return; }
+        if(!confirm(`「${t.name}」を削除しますか？\n（タイムラインの予定はそのまま残ります）`)) return;
+        const id = t.id;
+        tasks = tasks.filter(x => x.id !== id);
+        if(selTask && selTask.id === id){
+            selTask = null; tapStep = 0; tapStart = null; clearPreview(); updateHint();
+        }
+        save();
+        renderTaskList();
+        closeNewTaskModal();
+    }
+    document.getElementById('task-input').addEventListener('keydown', e=>{ if(e.key==='Enter') saveTaskFromModal(); });
 
     function renderTaskList(){
         const list = document.getElementById('task-list'); list.innerHTML='';
         if(!tasks.length){ list.innerHTML='<div class="empty">タスクを作ってね</div>'; return; }
-        tasks.forEach(t => {
+        tasks.forEach((t, i) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'tcw';
             const chip = document.createElement('div');
             chip.className = 'tchip' + (selTask&&selTask.id===t.id?' active':'');
             chip.style.background = t.color;
-            chip.innerHTML = `<span class="tname">${t.icon ? t.icon + ' ' : ''}${t.name}</span>`;
-            const del = document.createElement('button'); del.className='tdel'; del.textContent='✕';
-            del.onclick = ev => { ev.stopPropagation(); tasks=tasks.filter(x=>x.id!==t.id); if(selTask&&selTask.id===t.id){selTask=null;tapStep=0;clearPreview();updateHint();} save(); renderTaskList(); };
-            chip.appendChild(del);
+            const name = document.createElement('span');
+            name.className = 'tname';
+            name.textContent = t.name;
+            chip.appendChild(name);
+            const edit = document.createElement('button');
+            edit.className='tedit'; edit.textContent='✎';
+            edit.onclick = ev => { ev.stopPropagation(); openEditTaskModal(t); };
+            chip.appendChild(edit);
+            const handle = document.createElement('button');
+            handle.className = 'thandle'; handle.textContent = '☰';
+            handle.title = 'ドラッグで並び替え';
+            handle.addEventListener('pointerdown', e => startTaskDrag(e, i));
+            chip.appendChild(handle);
             chip.onclick = () => selectTask(t);
-            list.appendChild(chip);
+            wrap.appendChild(chip);
+            list.appendChild(wrap);
         });
     }
 
@@ -511,26 +647,110 @@
         });
     }
 
+    function getIconName(emoji){
+        const f = PALETTE_ICONS.find(i => i.emoji === emoji);
+        return f ? f.name : '';
+    }
+    function detectIconFromName(name){
+        for(const ic of PALETTE_ICONS){
+            if(name.startsWith(ic.emoji + ' ')) return ic.emoji;
+        }
+        return null;
+    }
+    function updateInputPlaceholder(){
+        const inp = document.getElementById('task-input');
+        inp.placeholder = (selIcon && getIconName(selIcon)) || 'やること...';
+    }
     function renderIconRow(){
         const row = document.getElementById('icon-row'); row.innerHTML='';
-        ICONS.forEach(ic => {
-            const d = document.createElement('div'); d.className='idot'+(ic===selIcon?' sel':''); d.textContent=ic;
-            d.onclick = () => { selIcon=ic; renderIconRow(); updateInputPlaceholder(); };
+        PALETTE_ICONS.forEach(({emoji}) => {
+            const d = document.createElement('div');
+            d.className = 'idot' + (emoji === selIcon ? ' sel' : '');
+            d.textContent = emoji;
+            d.onclick = () => {
+                selIcon = (selIcon === emoji) ? null : emoji;
+                renderIconRow(); updateInputPlaceholder();
+            };
             row.appendChild(d);
         });
     }
 
-    function renderDone(){
-        const list = document.getElementById('done-list'); list.innerHTML='';
-        const doneOnes = placed.filter(p => p.done);
-        if(!doneOnes.length){ list.innerHTML='<div class="empty">まだないよ</div>'; return; }
-        doneOnes.forEach(p => { const chip=document.createElement('div'); chip.className='done-chip'; chip.style.background=p.color; chip.textContent=(p.icon?p.icon+' ':'')+p.name; list.appendChild(chip); });
+    // ── TASK DRAG ──
+    let taskDragState = null;
+    function startTaskDrag(e, i){
+        e.preventDefault();
+        e.stopPropagation();
+        const list = document.getElementById('task-list');
+        const wrappers = Array.from(list.children).filter(el => el.classList.contains('tcw'));
+        if(!wrappers.length || i >= wrappers.length) return;
+        const wrapper = wrappers[i];
+        const initialRects = wrappers.map(w => w.getBoundingClientRect());
+        const handle = e.currentTarget;
+        taskDragState = {
+            fromIndex: i,
+            targetIndex: i,
+            wrapper, wrappers, initialRects,
+            shiftAmount: initialRects[i].height + 5,
+            pointerStartY: e.clientY,
+            pointerId: e.pointerId,
+            handle
+        };
+        wrapper.classList.add('dragging');
+        handle.setPointerCapture(e.pointerId);
+        handle.addEventListener('pointermove', onTaskDragMove);
+        handle.addEventListener('pointerup', endTaskDrag);
+        handle.addEventListener('pointercancel', endTaskDrag);
+    }
+    function onTaskDragMove(e){
+        if(!taskDragState) return;
+        const dy = e.clientY - taskDragState.pointerStartY;
+        taskDragState.wrapper.style.transform = `translateY(${dy}px) scale(1.02)`;
+        const pointerY = e.clientY;
+        const { fromIndex, wrappers, initialRects, shiftAmount } = taskDragState;
+        let target = fromIndex;
+        for(let idx = 0; idx < wrappers.length; idx++){
+            if(idx === fromIndex) continue;
+            const r = initialRects[idx];
+            const mid = r.top + r.height / 2;
+            if(idx < fromIndex && pointerY < mid) target = Math.min(target, idx);
+            else if(idx > fromIndex && pointerY > mid) target = Math.max(target, idx);
+        }
+        if(target !== taskDragState.targetIndex){
+            taskDragState.targetIndex = target;
+            wrappers.forEach((w, idx) => {
+                if(idx === fromIndex) return;
+                let shift = 0;
+                if(fromIndex < target && idx > fromIndex && idx <= target) shift = -shiftAmount;
+                else if(fromIndex > target && idx >= target && idx < fromIndex) shift = shiftAmount;
+                w.style.transform = `translateY(${shift}px)`;
+            });
+        }
+    }
+    function endTaskDrag(e){
+        if(!taskDragState) return;
+        const { fromIndex, targetIndex, handle } = taskDragState;
+        handle.removeEventListener('pointermove', onTaskDragMove);
+        handle.removeEventListener('pointerup', endTaskDrag);
+        handle.removeEventListener('pointercancel', endTaskDrag);
+        taskDragState = null;
+        if(fromIndex !== targetIndex){
+            const [item] = tasks.splice(fromIndex, 1);
+            tasks.splice(targetIndex, 0, item);
+            save();
+        }
+        renderTaskList();
+    }
+
+    function renderDoneCounter(){
+        const el = document.getElementById('done-counter');
+        const n = placed.filter(p => p.done).length;
+        el.textContent = `🌟 今日 ${n} こ おわった`;
     }
 
     function resetDay(){
-        if(!confirm('タイムラインとおわったを消します。タスク一覧は残ります。よろしい？')) return;
+        if(!confirm('タイムラインを消します。タスク一覧は残ります。よろしい？')) return;
         placed=[]; tapStep=0; tapStart=null; clearPreview();
-        save(); renderPlaced(); renderDone(); updateHint();
+        save(); renderPlaced(); renderDoneCounter(); updateHint();
     }
 
     function scrollToNow(){
@@ -547,7 +767,7 @@
     function init(){
         const now=new Date(), days=['日','月','火','水','木','金','土'];
         document.getElementById('date-label').textContent = `${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
-        renderIconRow(); renderColorRow(); buildTimeline(); renderTaskList(); renderPlaced(); renderDone(); updateHint();
+        renderIconRow(); renderColorRow(); buildTimeline(); renderTaskList(); renderPlaced(); renderDoneCounter(); updateHint();
         updateInputPlaceholder();
         scrollToNow();
         setInterval(()=>{ document.querySelectorAll('.now-line').forEach(el=>el.remove()); renderPlaced(); }, 60000);
