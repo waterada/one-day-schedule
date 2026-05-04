@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今日のスケジュール</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Nunito', sans-serif; background: #F7F3EE; color: #2D2D2D; min-height: 100vh; padding: 14px; }
+
+        header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .date { font-size: 18px; font-weight: 900; }
+        .date small { font-size: 12px; font-weight: 600; color: #999; display: block; }
+        .btn-reset { background: #eee; border: none; border-radius: 16px; padding: 6px 14px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; color: #666; cursor: pointer; }
+
+        .layout { display: flex; gap: 12px; align-items: flex-start; }
+
+        /* ── TIMELINE ── */
+        .tl-wrap { flex: 1; background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
+        .tl-head { padding: 10px 14px; font-weight: 900; font-size: 13px; color: #888; border-bottom: 1px solid #eee; }
+        .tl-body { position: relative; padding-left: 42px; }
+
+        .slot {
+            height: 30px; border-top: 1px solid #F0EBE3; position: relative; cursor: pointer;
+            transition: background .1s;
+        }
+        .slot:last-child { border-bottom: 1px solid #F0EBE3; }
+        .slot.q30 { border-top: 1px dashed #E8DFCE; }
+        .slot.q15 { border-top: 1px dashed #F4F0E8; }
+        .slot:active { background: rgba(0,0,0,0.03); }
+        .slot.preview { background: rgba(100,200,180,0.15); }
+        .slot-label { position: absolute; left: -38px; top: -9px; font-size: 11px; font-weight: 800; color: #bbb; width: 30px; text-align: right; }
+
+        /* placed blocks */
+        .block {
+            position: absolute; border-radius: 8px;
+            padding: 4px 8px; color: white; font-size: 13px; font-weight: 800;
+            z-index: 10; overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+            min-height: 24px; cursor: pointer;
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+        }
+        .block .block-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .block .block-time { font-size: 10px; font-weight: 700; opacity: .75; margin: 0 4px; white-space: nowrap; }
+        .block.done { opacity: .4; text-decoration: line-through; }
+
+        .now-line { position: absolute; left: 0; right: 0; height: 2px; background: #FF6B6B; z-index: 20; pointer-events: none; }
+        .now-line::before { content: ''; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; background: #FF6B6B; border-radius: 50%; }
+
+        /* ── PANEL ── */
+        .panel {
+            width: 160px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
+            position: sticky; top: 14px; align-self: flex-start;
+            max-height: calc(100vh - 28px); overflow-y: auto;
+        }
+
+        .hint {
+            border-radius: 10px; padding: 10px 12px; font-size: 12px; font-weight: 800;
+            text-align: center; line-height: 1.6; background: #FFE66D; color: #6b5900;
+        }
+        .hint.step2 { background: #4ECDC4; color: white; }
+
+        .card { background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
+        .card-head { padding: 9px 12px; font-weight: 900; font-size: 12px; color: #888; border-bottom: 1px solid #eee; }
+
+        /* add form */
+        .add-form { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+        .task-input { width: 100%; padding: 8px 10px; border: 2px solid #eee; border-radius: 9px; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; outline: none; }
+        .task-input:focus { border-color: #4ECDC4; }
+        .color-row { display: flex; flex-wrap: wrap; gap: 5px; }
+        .cdot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color .15s, transform .15s; }
+        .cdot.sel { border-color: #2D2D2D; transform: scale(1.2); }
+        .icon-row { display: flex; flex-wrap: wrap; gap: 4px; }
+        .idot { width: 26px; height: 26px; border-radius: 7px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
+        .idot.sel { border-color: #2D2D2D; transform: scale(1.15); background: white; }
+        .btn-add { background: #4ECDC4; color: white; border: none; border-radius: 9px; padding: 8px; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 13px; cursor: pointer; width: 100%; }
+
+        /* task list */
+        .task-list { padding: 7px; display: flex; flex-direction: column; gap: 5px; }
+        .tchip {
+            padding: 9px 10px; border-radius: 9px; font-size: 13px; font-weight: 800; color: white;
+            cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+            transition: transform .1s;
+        }
+        .tchip.active { outline: 3px solid #2D2D2D; outline-offset: 2px; }
+        .tchip .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tchip .tdel { background: rgba(255,255,255,0.3); border: none; color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+
+        /* done */
+        .done-list { padding: 7px; display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
+        .done-chip { padding: 5px 9px; border-radius: 7px; font-size: 12px; font-weight: 700; color: white; opacity: .55; text-decoration: line-through; }
+        .empty { color: #bbb; font-size: 12px; font-weight: 600; text-align: center; padding: 6px; }
+
+        /* edit modal */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; }
+        .modal-card {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: white; border-radius: 16px; padding: 18px; z-index: 101;
+            width: 300px; max-width: calc(100vw - 28px);
+            max-height: calc(100vh - 28px); overflow-y: auto;
+            box-shadow: 0 6px 30px rgba(0,0,0,0.25);
+            display: none; flex-direction: column; gap: 10px;
+        }
+        .modal-bg.open { display: block; }
+        .modal-card.open { display: flex; }
+        .modal-name { text-align: center; padding: 10px 12px; border-radius: 9px; color: white; font-weight: 900; font-size: 15px; }
+        .time-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; gap: 8px; }
+        .time-row .time-label { font-weight: 800; font-size: 13px; color: #888; min-width: 36px; }
+        .time-row .time-val { font-size: 20px; font-weight: 900; flex: 1; text-align: center; }
+        .time-btn { background: #4ECDC4; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: 900; cursor: pointer; font-family: 'Nunito', sans-serif; flex-shrink: 0; }
+        .modal-btn { border: none; border-radius: 9px; padding: 12px; font-weight: 900; font-size: 14px; cursor: pointer; font-family: 'Nunito', sans-serif; }
+        .modal-btn.close-btn { background: #4ECDC4; color: white; padding: 16px; font-size: 16px; }
+        .modal-divider { height: 1px; background: #eee; margin: 8px -4px 4px; }
+        .modal-sub-label { font-size: 11px; font-weight: 700; color: #bbb; text-align: center; }
+        .action-row { display: flex; gap: 10px; }
+        .action-row .modal-btn { flex: 1; padding: 10px 8px; font-size: 13px; opacity: .85; }
+        .modal-btn.done-btn { background: #6ab04c; color: white; }
+        .modal-btn.undo-btn { background: #FFB347; color: white; }
+        .modal-btn.del-btn  { background: #FF6B6B; color: white; }
+        .modal-btn.shift-btn { background: #5C7AEA; color: white; }
+    </style>
+
+</head>
+<body>
+
+<header>
+    <div class="date"><span id="date-label"></span><small>今日のスケジュール</small></div>
+    <button class="btn-reset" onclick="resetDay()">リセット</button>
+</header>
+
+<div class="layout">
+    <div class="tl-wrap">
+        <div class="tl-head" id="tl-head">タイムライン</div>
+        <div class="tl-body" id="tl-body"></div>
+    </div>
+    <div class="panel">
+        <div class="hint" id="hint">タスクを選んで<br>開始時間をタップ</div>
+
+        <div class="card">
+            <div class="card-head">タスクを作る</div>
+            <div class="add-form">
+                <input class="task-input" id="task-input" placeholder="やること..." maxlength="20">
+                <div class="icon-row" id="icon-row"></div>
+                <div class="color-row" id="color-row"></div>
+                <button class="btn-add" onclick="addTask()">＋ 追加</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">タスク一覧</div>
+            <div class="task-list" id="task-list"><div class="empty">タスクを作ってね</div></div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">おわった</div>
+            <div class="done-list" id="done-list"><div class="empty">まだないよ</div></div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal-bg" id="modal-bg" onclick="closeEdit()"></div>
+<div class="modal-card" id="modal-card">
+    <div class="modal-name" id="edit-name"></div>
+    <div class="time-row">
+        <span class="time-label">開始</span>
+        <button class="time-btn" onclick="adjustTime('start',-1)">−</button>
+        <span class="time-val" id="edit-start"></span>
+        <button class="time-btn" onclick="adjustTime('start',1)">＋</button>
+    </div>
+    <div class="time-row">
+        <span class="time-label">終了</span>
+        <button class="time-btn" onclick="adjustTime('end',-1)">−</button>
+        <span class="time-val" id="edit-end"></span>
+        <button class="time-btn" onclick="adjustTime('end',1)">＋</button>
+    </div>
+    <button class="modal-btn close-btn" onclick="closeEdit()">閉じる</button>
+    <div class="modal-divider"></div>
+    <div class="modal-sub-label">↓ 後続をまとめてずらす</div>
+    <div class="action-row">
+        <button class="modal-btn shift-btn" onclick="shiftAfter(-15)">−15</button>
+        <button class="modal-btn shift-btn" onclick="shiftAfter(-5)">−5</button>
+        <button class="modal-btn shift-btn" onclick="shiftAfter(5)">＋5</button>
+        <button class="modal-btn shift-btn" onclick="shiftAfter(15)">＋15</button>
+    </div>
+    <div class="modal-divider"></div>
+    <div class="modal-sub-label">↓ おしまいの操作</div>
+    <div class="action-row">
+        <button class="modal-btn done-btn" id="done-btn" onclick="toggleDone()">✓ おわった</button>
+        <button class="modal-btn del-btn" onclick="deleteEdit()">✕ 削除</button>
+    </div>
+</div>
+
+<script>
+    const SLOT_H = 30;    // px per 15min slot
+    const START_H = 7;
+    const END_H = 22;
+    const SLOTS = (END_H - START_H) * 4; // 15min slots
+    const FINE_STEP_MIN = 5; // minutes for ± buttons in edit modal
+
+    const COLORS = ['#FF6B6B','#FF8E53','#FFB347','#FFD93D','#6ab04c','#4ECDC4','#45B7D1','#5C7AEA','#C3B1E1','#E08DAC'];
+    const ICONS = ['🍚','📝','🧸','🎮','🍰','👗','🛁','🪥','😴'];
+    const ICON_NAMES = {
+        '🍚':'ごはん','📝':'勉強','🧸':'自由','🎮':'ゲーム',
+        '🍰':'おやつ','👗':'きがえ','🛁':'おふろ','🪥':'はみがき','😴':'ねる'
+    };
+
+    let tasks  = JSON.parse(localStorage.getItem('tsk5') || '[]');
+    let placed = JSON.parse(localStorage.getItem('plc5') || '[]');
+    let selColor = COLORS[0];
+    let selIcon  = ICONS[0];
+    let selTask  = null;
+    let tapStep  = 0;   // 0=idle 1=waiting for end tap
+    let tapStart = null;
+    let editId   = null;
+
+    function save(){
+        localStorage.setItem('tsk5', JSON.stringify(tasks));
+        localStorage.setItem('plc5', JSON.stringify(placed));
+    }
+
+    function slotToHour(s){ return START_H + s * 0.25; }
+    function fmt(h){
+        const total = Math.round(h * 60);
+        const hh = Math.floor(total / 60);
+        const mm = total % 60;
+        return `${hh}:${mm.toString().padStart(2,'0')}`;
+    }
+
+    // ── BUILD TIMELINE ──
+    function buildTimeline(){
+        const body = document.getElementById('tl-body');
+        body.innerHTML = '';
+
+        for(let s = 0; s <= SLOTS; s++){
+            const h = slotToHour(s);
+            const mod = s % 4;
+            if(s === SLOTS) {
+                const endRow = document.createElement('div');
+                endRow.style.cssText = 'position:relative;height:1px;';
+                endRow.innerHTML = `<div class="slot-label">${END_H}:00</div>`;
+                body.appendChild(endRow);
+                break;
+            }
+            const slot = document.createElement('div');
+            let cls = 'slot';
+            if(mod === 2) cls += ' q30';
+            else if(mod !== 0) cls += ' q15';
+            slot.className = cls;
+            slot.dataset.slot = s;
+            if(mod === 0) slot.innerHTML = `<div class="slot-label">${Math.floor(h)}:00</div>`;
+            slot.addEventListener('click', () => onSlotTap(s));
+            body.appendChild(slot);
+        }
+    }
+
+    function onSlotTap(s){
+        if(!selTask) return;
+
+        if(tapStep === 0){
+            tapStart = s;
+            tapStep = 1;
+            highlightPreview(s, s+1);
+            updateHint();
+        } else {
+            let startSlot = Math.min(tapStart, s);
+            let endSlot   = Math.max(tapStart, s) + 1;
+            endSlot = Math.min(endSlot, SLOTS);
+
+            placed.push({
+                id: Date.now(),
+                name: selTask.name,
+                color: selTask.color,
+                icon: selTask.icon || '',
+                startH: slotToHour(startSlot),
+                duration: (endSlot - startSlot) * 0.25,
+                done: false
+            });
+            tapStep = 0; tapStart = null;
+            clearPreview();
+            save(); renderPlaced(); updateHint();
+        }
+    }
+
+    function highlightPreview(from, to){
+        clearPreview();
+        document.querySelectorAll('.slot').forEach(sl => {
+            const s = +sl.dataset.slot;
+            if(s >= from && s < to) sl.classList.add('preview');
+        });
+    }
+    function clearPreview(){ document.querySelectorAll('.slot.preview').forEach(sl => sl.classList.remove('preview')); }
+
+    document.getElementById('tl-body').addEventListener('mouseover', e => {
+        if(tapStep !== 1 || !selTask) return;
+        const sl = e.target.closest('.slot');
+        if(!sl) return;
+        const s = +sl.dataset.slot;
+        const from = Math.min(tapStart, s);
+        const to   = Math.max(tapStart, s) + 1;
+        highlightPreview(from, to);
+    });
+
+    // ── RENDER PLACED ──
+    function layoutLanes(blocks){
+        if(!blocks.length) return [];
+        const EPS = 1e-6;
+        const arr = blocks.map(p => ({ ref: p, lane: 0, lanes: 1 }));
+        arr.sort((a, b) => a.ref.startH - b.ref.startH);
+        let cluster = [];
+        let clusterEnd = -Infinity;
+        const finalize = () => {
+            if(!cluster.length) return;
+            const laneEnds = [];
+            for(const b of cluster){
+                let put = false;
+                for(let i = 0; i < laneEnds.length; i++){
+                    if(laneEnds[i] <= b.ref.startH + EPS){
+                        b.lane = i;
+                        laneEnds[i] = b.ref.startH + b.ref.duration;
+                        put = true;
+                        break;
+                    }
+                }
+                if(!put){
+                    b.lane = laneEnds.length;
+                    laneEnds.push(b.ref.startH + b.ref.duration);
+                }
+            }
+            const total = laneEnds.length;
+            cluster.forEach(b => b.lanes = total);
+            cluster = [];
+            clusterEnd = -Infinity;
+        };
+        for(const b of arr){
+            if(b.ref.startH >= clusterEnd - EPS) finalize();
+            cluster.push(b);
+            clusterEnd = Math.max(clusterEnd, b.ref.startH + b.ref.duration);
+        }
+        finalize();
+        return arr;
+    }
+
+    function renderPlaced(){
+        document.querySelectorAll('.block').forEach(el => el.remove());
+        document.querySelectorAll('.now-line').forEach(el => el.remove());
+        const body = document.getElementById('tl-body');
+
+        layoutLanes(placed).forEach(({ ref: p, lane, lanes }) => {
+            const top = (p.startH - START_H) * 4 * SLOT_H;
+            const h   = p.duration * 4 * SLOT_H;
+            const widthExpr = `calc((100% - 8px) / ${lanes})`;
+            const leftExpr  = `calc(4px + ${lane} * (100% - 8px) / ${lanes})`;
+            const el  = document.createElement('div');
+            el.className = 'block' + (p.done ? ' done' : '');
+            el.style.cssText = `top:${top}px;height:${h}px;background:${p.color};left:${leftExpr};width:${widthExpr};`;
+            el.innerHTML = `
+      <span class="block-label">${p.icon ? p.icon + ' ' : ''}${p.name}</span>
+      <span class="block-time">${fmt(p.startH)}〜${fmt(p.startH+p.duration)}</span>`;
+            el.addEventListener('click', () => openEdit(p.id));
+            body.appendChild(el);
+        });
+
+        const now = new Date();
+        const h = now.getHours() + now.getMinutes()/60;
+        if(h >= START_H && h <= END_H){
+            const line = document.createElement('div');
+            line.className = 'now-line';
+            line.style.top = (h - START_H) * 4 * SLOT_H + 'px';
+            body.appendChild(line);
+        }
+    }
+
+    // ── EDIT MODAL ──
+    function openEdit(id){
+        editId = id;
+        const p = placed.find(x => x.id === id);
+        if(!p) return;
+        const nameEl = document.getElementById('edit-name');
+        nameEl.textContent = (p.icon ? p.icon + ' ' : '') + p.name;
+        nameEl.style.background = p.color;
+        renderEditTimes();
+        const dBtn = document.getElementById('done-btn');
+        dBtn.classList.toggle('done-btn', !p.done);
+        dBtn.classList.toggle('undo-btn', !!p.done);
+        dBtn.textContent = p.done ? '↩ もどす' : '✓ おわった';
+        document.getElementById('modal-bg').classList.add('open');
+        document.getElementById('modal-card').classList.add('open');
+    }
+
+    function renderEditTimes(){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        document.getElementById('edit-start').textContent = fmt(p.startH);
+        document.getElementById('edit-end').textContent   = fmt(p.startH + p.duration);
+    }
+
+    function adjustTime(which, dir){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        const startMin = Math.round(p.startH * 60);
+        const durMin   = Math.round(p.duration * 60);
+        const endMin   = startMin + durMin;
+        if(which === 'start'){
+            const newStart = startMin + dir * FINE_STEP_MIN;
+            if(newStart < START_H * 60) return;
+            if(endMin - newStart < FINE_STEP_MIN) return;
+            p.startH = newStart / 60;
+            p.duration = (endMin - newStart) / 60;
+        } else {
+            const newEnd = endMin + dir * FINE_STEP_MIN;
+            if(newEnd > END_H * 60) return;
+            if(newEnd - startMin < FINE_STEP_MIN) return;
+            p.duration = (newEnd - startMin) / 60;
+        }
+        save(); renderPlaced(); renderEditTimes();
+    }
+
+    function toggleDone(){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        p.done = !p.done;
+        save(); renderPlaced(); renderDone();
+        closeEdit();
+    }
+
+    function deleteEdit(){
+        if(!confirm('削除しますか？')) return;
+        placed = placed.filter(x => x.id !== editId);
+        closeEdit();
+        save(); renderPlaced();
+    }
+
+    function shiftAfter(deltaMin){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        const threshold = p.startH + p.duration - 1e-6;
+        const delta = deltaMin / 60;
+        const targets = placed.filter(q => q.id !== p.id && q.startH >= threshold);
+        if(!targets.length){ alert('後続のタスクがありません'); return; }
+        for(const q of targets){
+            const newStart = q.startH + delta;
+            const newEnd = newStart + q.duration;
+            if(newStart < START_H - 1e-6 || newEnd > END_H + 1e-6){
+                alert('範囲外になるためずらせません');
+                return;
+            }
+        }
+        targets.forEach(q => { q.startH += delta; });
+        save(); renderPlaced();
+    }
+
+    function closeEdit(){
+        editId = null;
+        document.getElementById('modal-bg').classList.remove('open');
+        document.getElementById('modal-card').classList.remove('open');
+    }
+
+    // ── HINT ──
+    function updateHint(){
+        const bar = document.getElementById('hint');
+        if(!selTask){ bar.textContent = 'タスクを選んで\n開始時間をタップ'; bar.className='hint'; bar.style.whiteSpace='pre'; return; }
+        if(tapStep === 0){ bar.innerHTML = `<b>${selTask.name}</b><br>開始時間をタップ`; bar.className='hint'; }
+        else             { bar.innerHTML = `<b>${selTask.name}</b><br>${fmt(slotToHour(tapStart))} 〜<br>終了時間をタップ`; bar.className='hint step2'; }
+    }
+
+    // ── TASKS ──
+    function updateInputPlaceholder(){
+        const inp = document.getElementById('task-input');
+        inp.placeholder = ICON_NAMES[selIcon] || 'やること...';
+    }
+
+    function addTask(){
+        const inp = document.getElementById('task-input');
+        let name = inp.value.trim();
+        if(!name) name = ICON_NAMES[selIcon] || '';
+        if(!name) return;
+        const t = {id:Date.now(), name, color:selColor, icon:selIcon};
+        tasks.push(t); inp.value=''; save(); renderTaskList(); selectTask(t);
+    }
+    document.getElementById('task-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addTask(); });
+
+    function renderTaskList(){
+        const list = document.getElementById('task-list'); list.innerHTML='';
+        if(!tasks.length){ list.innerHTML='<div class="empty">タスクを作ってね</div>'; return; }
+        tasks.forEach(t => {
+            const chip = document.createElement('div');
+            chip.className = 'tchip' + (selTask&&selTask.id===t.id?' active':'');
+            chip.style.background = t.color;
+            chip.innerHTML = `<span class="tname">${t.icon ? t.icon + ' ' : ''}${t.name}</span>`;
+            const del = document.createElement('button'); del.className='tdel'; del.textContent='✕';
+            del.onclick = ev => { ev.stopPropagation(); tasks=tasks.filter(x=>x.id!==t.id); if(selTask&&selTask.id===t.id){selTask=null;tapStep=0;clearPreview();updateHint();} save(); renderTaskList(); };
+            chip.appendChild(del);
+            chip.onclick = () => selectTask(t);
+            list.appendChild(chip);
+        });
+    }
+
+    function selectTask(t){
+        selTask = t; tapStep = 0; tapStart = null; clearPreview();
+        renderTaskList(); updateHint();
+    }
+
+    function renderColorRow(){
+        const row = document.getElementById('color-row'); row.innerHTML='';
+        COLORS.forEach(c => {
+            const d = document.createElement('div'); d.className='cdot'+(c===selColor?' sel':''); d.style.background=c;
+            d.onclick = () => { selColor=c; renderColorRow(); };
+            row.appendChild(d);
+        });
+    }
+
+    function renderIconRow(){
+        const row = document.getElementById('icon-row'); row.innerHTML='';
+        ICONS.forEach(ic => {
+            const d = document.createElement('div'); d.className='idot'+(ic===selIcon?' sel':''); d.textContent=ic;
+            d.onclick = () => { selIcon=ic; renderIconRow(); updateInputPlaceholder(); };
+            row.appendChild(d);
+        });
+    }
+
+    function renderDone(){
+        const list = document.getElementById('done-list'); list.innerHTML='';
+        const doneOnes = placed.filter(p => p.done);
+        if(!doneOnes.length){ list.innerHTML='<div class="empty">まだないよ</div>'; return; }
+        doneOnes.forEach(p => { const chip=document.createElement('div'); chip.className='done-chip'; chip.style.background=p.color; chip.textContent=(p.icon?p.icon+' ':'')+p.name; list.appendChild(chip); });
+    }
+
+    function resetDay(){
+        if(!confirm('タイムラインとおわったを消します。タスク一覧は残ります。よろしい？')) return;
+        placed=[]; tapStep=0; tapStart=null; clearPreview();
+        save(); renderPlaced(); renderDone(); updateHint();
+    }
+
+    function scrollToNow(){
+        const now = new Date();
+        const h = now.getHours() + now.getMinutes()/60;
+        if(h < START_H || h > END_H) return;
+        const tl = document.getElementById('tl-body');
+        if(!tl) return;
+        const yInBody = (h - START_H) * 4 * SLOT_H;
+        const target = window.scrollY + tl.getBoundingClientRect().top + yInBody - 100;
+        window.scrollTo(0, Math.max(0, target));
+    }
+
+    function init(){
+        const now=new Date(), days=['日','月','火','水','木','金','土'];
+        document.getElementById('date-label').textContent = `${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
+        renderIconRow(); renderColorRow(); buildTimeline(); renderTaskList(); renderPlaced(); renderDone(); updateHint();
+        updateInputPlaceholder();
+        scrollToNow();
+        setInterval(()=>{ document.querySelectorAll('.now-line').forEach(el=>el.remove()); renderPlaced(); }, 60000);
+    }
+    init();
+</script>
+
+</body>
+</html>
