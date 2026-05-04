@@ -1,9 +1,9 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `schedule-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
     './',
-    './schedule.html',
+    './index.html',
     './manifest.json',
     './icons/icon-180.png',
     './icons/icon-192.png',

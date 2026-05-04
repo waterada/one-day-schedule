@@ -1,4 +1,4 @@
-"""Generate PWA icons for schedule.html.
+"""Generate PWA icons for index.html.
 
 Run: python3 make_icons.py
 Outputs: icons/icon-180.png, icon-192.png, icon-512.png, icon-maskable-512.png

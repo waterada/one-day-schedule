@@ -7,7 +7,7 @@ iPhone でホーム画面に置くと、PWA としてアプリのように動く
 ## ファイル構成
 
 ```
-schedule.html         本体（HTML / CSS / JS 全部入り）
+index.html            本体（HTML / CSS / JS 全部入り）
 manifest.json         Web App Manifest
 sw.js                 Service Worker（オフライン対応）
 icons/
@@ -24,7 +24,7 @@ make_icons.py         アイコン再生成スクリプト（Pillow 使用）
 
 ```bash
 python3 -m http.server 8000
-# → http://localhost:8000/schedule.html
+# → http://localhost:8000/
 ```
 
 ## GitHub Pages デプロイ
@@ -34,7 +34,7 @@ python3 -m http.server 8000
 3. Source を `main` ブランチ / `/ (root)` に設定
 4. 数分後、以下の URL で公開される
    ```
-   https://waterada.github.io/one-day-schedule/schedule.html
+   https://waterada.github.io/one-day-schedule/
    ```
 
 GitHub Pages は HTTPS で配信されるため、Service Worker が動作する。
