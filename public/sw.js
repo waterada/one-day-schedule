@@ -34,6 +34,10 @@ self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;
 
+    // API responses must never be cached: stale data would silently overwrite server state.
+    const url = new URL(req.url);
+    if (url.pathname.startsWith('/api/')) return;
+
     event.respondWith(
         caches.match(req).then((cached) => {
             const fetchPromise = fetch(req)

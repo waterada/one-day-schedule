@@ -164,6 +164,17 @@
             white-space: nowrap;
         }
         .add-here-btn:active { transform: translateY(-50%) scale(0.95); }
+
+        /* sync status indicator (visible only on auth error) */
+        .header-right { display: flex; align-items: center; gap: 8px; }
+        .sync-pill {
+            display: none;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #FF6B6B;
+            box-shadow: 0 0 0 2px white inset, 0 1px 3px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+        .sync-pill[data-state="error"] { display: inline-block; }
     </style>
 
 </head>
@@ -171,7 +182,10 @@
 
 <header>
     <div class="date"><span id="date-label"></span><small>今日のスケジュール</small></div>
-    <button class="btn-reset" onclick="resetDay()">リセット</button>
+    <div class="header-right">
+        <div id="sync-pill" class="sync-pill" data-state="idle" title=""></div>
+        <button class="btn-reset" onclick="resetDay()">リセット</button>
+    </div>
 </header>
 
 <div class="layout">
@@ -242,6 +256,19 @@
     </div>
 </div>
 
+<div class="modal-bg" id="auth-modal-bg"></div>
+<div class="modal-card" id="auth-modal-card" style="width:280px;">
+    <div class="modal-name" style="background:#5C7AEA;">サーバの合言葉</div>
+    <div style="font-size:12px; font-weight:700; color:#666; text-align:center; line-height:1.5;">
+        この端末で初めて使うときに<br>1 回だけ入力します。
+    </div>
+    <input class="task-input" id="auth-input" type="password" placeholder="合言葉" autocomplete="off">
+    <div id="auth-error" style="display:none; font-size:11px; font-weight:700; color:#FF6B6B; text-align:center;">
+        合言葉が違います
+    </div>
+    <button class="modal-btn close-btn" id="auth-save-btn">OK</button>
+</div>
+
 <script src="version.js"></script>
 <script>
     const SLOT_H = 30;    // px per 15min slot
@@ -264,26 +291,8 @@
         {emoji:'🎒', name:'準備'}
     ];
 
-    let tasks  = JSON.parse(localStorage.getItem('tsk5') || '[]');
-    let placed = JSON.parse(localStorage.getItem('plc5') || '[]');
-
-    // ── one-time migration: merge legacy `icon` field into `name` ──
-    (function migrate(){
-        let dirty = false;
-        tasks.forEach(t => {
-            if(t.icon){ t.name = t.icon + ' ' + t.name; delete t.icon; dirty = true; }
-        });
-        placed.forEach(p => {
-            if(p.icon){ p.name = p.icon + ' ' + p.name; delete p.icon; dirty = true; }
-        });
-        if(localStorage.getItem('icn5') !== null){
-            localStorage.removeItem('icn5'); dirty = true;
-        }
-        if(dirty){
-            localStorage.setItem('tsk5', JSON.stringify(tasks));
-            localStorage.setItem('plc5', JSON.stringify(placed));
-        }
-    })();
+    let tasks  = JSON.parse(localStorage.getItem('tasks')  || '[]');
+    let placed = JSON.parse(localStorage.getItem('placed') || '[]');
 
     let selColor = COLORS[0];
     let selIcon  = null;
@@ -295,8 +304,9 @@
     let editId   = null;
 
     function save(){
-        localStorage.setItem('tsk5', JSON.stringify(tasks));
-        localStorage.setItem('plc5', JSON.stringify(placed));
+        localStorage.setItem('tasks',  JSON.stringify(tasks));
+        localStorage.setItem('placed', JSON.stringify(placed));
+        sync.markDirty();
     }
     function pickUnusedColor(){
         const used = new Set(tasks.map(t => t.color));
@@ -903,6 +913,168 @@
         lastTickMin = nowMin;
     }
 
+    // ── SERVER SYNC ──
+    const sync = (() => {
+        const API = '/api/state';
+        const KEY_PASS = 'serverPassphrase';
+        const KEY_VER  = 'serverVersion';
+        const DEBOUNCE_MS = 1000;
+
+        let pass = localStorage.getItem(KEY_PASS) || '';
+        let knownVersion = +(localStorage.getItem(KEY_VER) || 0);
+        let dirty = false;
+        let saveTimer = null;
+        let inflight = null;
+        let mode = 'idle';
+
+        function setMode(m){
+            mode = m;
+            const pill = document.getElementById('sync-pill');
+            if(!pill) return;
+            pill.dataset.state = m;
+            pill.title = ({
+                idle:    '同期済み',
+                syncing: '同期中…',
+                offline: 'オフライン (端末内に保存)',
+                error:   '合言葉エラー — タップで再入力',
+            })[m] || '';
+        }
+
+        function adoptServerState(s){
+            if(Array.isArray(s.tasks))  tasks  = s.tasks;
+            if(Array.isArray(s.placed)) placed = s.placed;
+            knownVersion = s.version || 0;
+            localStorage.setItem('tasks',  JSON.stringify(tasks));
+            localStorage.setItem('placed', JSON.stringify(placed));
+            localStorage.setItem(KEY_VER, String(knownVersion));
+            renderTaskList(); renderPlaced(); renderDoneCounter(); updateHint();
+        }
+
+        async function loadFromServer(){
+            if(!pass){ setMode('error'); return 'no_pass'; }
+            try {
+                setMode('syncing');
+                const res = await fetch(API, { headers: { authorization: 'Bearer ' + pass }, cache: 'no-store' });
+                if(res.status === 401){
+                    pass = ''; localStorage.removeItem(KEY_PASS);
+                    setMode('error');
+                    return 'unauthorized';
+                }
+                if(!res.ok) throw new Error('http ' + res.status);
+                const s = await res.json();
+                if((s.version || 0) > knownVersion) adoptServerState(s);
+                else knownVersion = s.version || 0;
+                setMode(dirty ? 'syncing' : 'idle');
+                if(dirty) flush();
+                return 'ok';
+            } catch {
+                setMode('offline');
+                return 'offline';
+            }
+        }
+
+        async function flush(){
+            if(!pass){ setMode('error'); return; }
+            if(!dirty) return;
+            if(inflight) return inflight;
+            dirty = false;
+            const body = JSON.stringify({ tasks, placed, baseVersion: knownVersion });
+            setMode('syncing');
+            inflight = (async () => {
+                try {
+                    const res = await fetch(API, {
+                        method: 'PUT',
+                        headers: { authorization: 'Bearer ' + pass, 'content-type': 'application/json' },
+                        body,
+                    });
+                    if(res.status === 401){
+                        pass = ''; localStorage.removeItem(KEY_PASS);
+                        setMode('error');
+                        openAuthModal(true);
+                        return;
+                    }
+                    if(res.status === 409){
+                        const data = await res.json();
+                        if(data.current) adoptServerState(data.current);
+                        dirty = true;
+                        return;
+                    }
+                    if(!res.ok) throw new Error('http ' + res.status);
+                    const data = await res.json();
+                    knownVersion = data.version;
+                    localStorage.setItem(KEY_VER, String(knownVersion));
+                } catch {
+                    dirty = true;
+                    setMode('offline');
+                    return;
+                } finally {
+                    inflight = null;
+                }
+                if(dirty) flush();
+                else setMode(navigator.onLine ? 'idle' : 'offline');
+            })();
+            return inflight;
+        }
+
+        function markDirty(){
+            dirty = true;
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(flush, DEBOUNCE_MS);
+        }
+
+        function openAuthModal(asError){
+            document.getElementById('auth-error').style.display = asError ? '' : 'none';
+            document.getElementById('auth-input').value = '';
+            document.getElementById('auth-modal-bg').classList.add('open');
+            document.getElementById('auth-modal-card').classList.add('open');
+            setTimeout(() => document.getElementById('auth-input').focus(), 50);
+        }
+        function closeAuthModal(){
+            document.getElementById('auth-modal-bg').classList.remove('open');
+            document.getElementById('auth-modal-card').classList.remove('open');
+        }
+        function bindAuthModal(){
+            const saveBtn = document.getElementById('auth-save-btn');
+            const onSubmit = async () => {
+                const v = document.getElementById('auth-input').value.trim();
+                if(!v) return;
+                pass = v;
+                localStorage.setItem(KEY_PASS, v);
+                document.getElementById('auth-error').style.display = 'none';
+                saveBtn.disabled = true;
+                const result = await loadFromServer();
+                saveBtn.disabled = false;
+                if(result === 'ok' || result === 'offline'){
+                    closeAuthModal();
+                } else if(result === 'unauthorized'){
+                    document.getElementById('auth-error').style.display = '';
+                    document.getElementById('auth-input').focus();
+                }
+            };
+            saveBtn.onclick = onSubmit;
+            document.getElementById('auth-input').addEventListener('keydown', e => {
+                if(e.key === 'Enter') onSubmit();
+            });
+            document.getElementById('sync-pill').onclick = () => {
+                if(mode === 'error') openAuthModal(false);
+            };
+        }
+
+        function init(){
+            bindAuthModal();
+            if(!pass){ setMode('error'); openAuthModal(false); return; }
+            loadFromServer();
+            document.addEventListener('visibilitychange', () => {
+                if(document.visibilityState === 'visible') loadFromServer();
+            });
+            window.addEventListener('online',  () => { setMode('syncing'); loadFromServer(); flush(); });
+            window.addEventListener('offline', () => setMode('offline'));
+            document.addEventListener('pagehide', () => { if(dirty) flush(); });
+        }
+
+        return { init, markDirty };
+    })();
+
     function init(){
         const now=new Date(), days=['日','月','火','水','木','金','土'];
         document.getElementById('date-label').textContent = `${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
@@ -916,6 +1088,7 @@
             renderPlaced();
             checkEndChime();
         }, 60000);
+        sync.init();
     }
     init();
 

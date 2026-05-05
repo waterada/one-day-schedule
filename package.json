@@ -1,0 +1,16 @@
+{
+  "name": "one-day-schedule-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "docker run --rm -it -v \"$PWD:/app\" -w /app -p 8787:8787 -u $(id -u):$(id -g) -e HOME=/tmp node:22-bookworm-slim npx wrangler dev --ip 0.0.0.0 --port 8787 --show-interactive-dev-session=false",
+    "dev:host": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250501.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^4.87.0"
+  }
+}

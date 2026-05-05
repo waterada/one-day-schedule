@@ -1,0 +1,16 @@
+name = "one-day-schedule"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[durable_objects.bindings]]
+name = "SCHEDULE_DO"
+class_name = "ScheduleDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ScheduleDO"]
