@@ -93,8 +93,8 @@
         .color-row { display: flex; flex-wrap: wrap; gap: 6px; }
         .cdot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color .15s, transform .15s; }
         .cdot.sel { border-color: #2D2D2D; transform: scale(1.15); }
-        .icon-row { display: flex; flex-wrap: wrap; gap: 6px; }
-        .idot { width: 42px; height: 42px; border-radius: 9px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 24px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
+        .icon-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+        .idot { aspect-ratio: 1; border-radius: 9px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 22px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
         .idot.sel { border-color: #2D2D2D; transform: scale(1.1); background: white; }
 
         /* task list */
@@ -288,7 +288,8 @@
         {emoji:'🛁', name:'おふろ'},
         {emoji:'🪥', name:'はみがき'},
         {emoji:'😴', name:'ねる'},
-        {emoji:'🎒', name:'準備'}
+        {emoji:'🎒', name:'準備'},
+        {emoji:'👩‍🍳', name:'お手伝い'}
     ];
 
     let tasks  = JSON.parse(localStorage.getItem('tasks')  || '[]');
