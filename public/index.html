@@ -81,7 +81,15 @@
         .hint.step2 { background: #4ECDC4; color: white; }
 
         .card { background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
-        .card-head { padding: 9px 12px; font-weight: 900; font-size: 12px; color: #888; border-bottom: 1px solid #eee; }
+        .card-head { padding: 9px 12px; font-weight: 900; font-size: 12px; color: #888; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .card-edit-toggle {
+            background: rgba(0,0,0,0.06); border: none; color: #888;
+            width: 28px; height: 28px; border-radius: 50%;
+            font-size: 14px; font-family: 'Nunito', sans-serif; font-weight: 900;
+            cursor: pointer; flex-shrink: 0; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .card-edit-toggle.active { background: #4ECDC4; color: white; }
 
         /* add form */
         .add-form { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -113,6 +121,11 @@
         .tchip.dark .tedit,
         .tchip.dark .thandle { color: #2D2D2D; background: rgba(0,0,0,0.12); }
         .tchip.dark .thandle:active { background: rgba(0,0,0,0.22); }
+
+        /* per-row edit/drag controls are hidden by default; revealed by edit-mode toggle */
+        .tchip .tedit, .tchip .thandle { display: none; }
+        .task-list.edit-mode .tchip .tedit,
+        .task-list.edit-mode .tchip .thandle { display: flex; }
 
         /* new task button + done counter */
         .btn-new-task { background: #4ECDC4; color: white; border: none; border-radius: 12px; padding: 12px; font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(78,205,196,0.3); }
@@ -213,7 +226,10 @@
         <button class="btn-new-task" onclick="openNewTaskModal()">＋ 新しいタスク</button>
 
         <div class="card">
-            <div class="card-head">タスク一覧</div>
+            <div class="card-head">
+                <span>タスク一覧</span>
+                <button class="card-edit-toggle" id="task-list-edit-toggle" onclick="toggleEditMode()" title="編集モード">✎</button>
+            </div>
             <div class="task-list" id="task-list"><div class="empty">タスクを作ってね</div></div>
         </div>
 
@@ -321,6 +337,7 @@
     let tapStep  = 0;   // 0=idle 1=waiting for end tap
     let tapStart = null;
     let editId   = null;
+    let editMode = false;
 
     function save(){
         localStorage.setItem('tasks',  JSON.stringify(tasks));
@@ -770,6 +787,12 @@
     function selectTask(t){
         selTask = t; tapStep = 0; tapStart = null; clearPreview();
         renderTaskList(); updateHint();
+    }
+
+    function toggleEditMode(){
+        editMode = !editMode;
+        document.getElementById('task-list').classList.toggle('edit-mode', editMode);
+        document.getElementById('task-list-edit-toggle').classList.toggle('active', editMode);
     }
 
     function renderColorRow(){
