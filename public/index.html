@@ -451,6 +451,8 @@
     function layoutLanes(blocks){
         if(!blocks.length) return [];
         const EPS = 1e-6;
+        const MIN_VISUAL_DUR = 12 / 60;
+        const visualEnd = p => p.startH + Math.max(p.duration, MIN_VISUAL_DUR);
         const arr = blocks.map(p => ({ ref: p, lane: 0, lanes: 1 }));
         arr.sort((a, b) => a.ref.startH - b.ref.startH);
         let cluster = [];
@@ -463,14 +465,14 @@
                 for(let i = 0; i < laneEnds.length; i++){
                     if(laneEnds[i] <= b.ref.startH + EPS){
                         b.lane = i;
-                        laneEnds[i] = b.ref.startH + b.ref.duration;
+                        laneEnds[i] = visualEnd(b.ref);
                         put = true;
                         break;
                     }
                 }
                 if(!put){
                     b.lane = laneEnds.length;
-                    laneEnds.push(b.ref.startH + b.ref.duration);
+                    laneEnds.push(visualEnd(b.ref));
                 }
             }
             const total = laneEnds.length;
@@ -481,7 +483,7 @@
         for(const b of arr){
             if(b.ref.startH >= clusterEnd - EPS) finalize();
             cluster.push(b);
-            clusterEnd = Math.max(clusterEnd, b.ref.startH + b.ref.duration);
+            clusterEnd = Math.max(clusterEnd, visualEnd(b.ref));
         }
         finalize();
         return arr;
