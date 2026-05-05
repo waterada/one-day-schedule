@@ -138,6 +138,16 @@
         .modal-bg.open { display: block; }
         .modal-card.open { display: flex; }
         .modal-name { text-align: center; padding: 10px 12px; border-radius: 9px; color: white; font-weight: 900; font-size: 15px; }
+        .edit-pencil-btn {
+            background: rgba(255,255,255,0.3); border: none; color: inherit;
+            width: 28px; height: 28px; border-radius: 50%; font-size: 14px; cursor: pointer;
+            font-family: 'Nunito', sans-serif; font-weight: 900;
+            margin-left: 10px; flex-shrink: 0; padding: 0;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+        .edit-pencil-btn:active { background: rgba(255,255,255,0.5); }
+        .modal-name.dark .edit-pencil-btn { background: rgba(0,0,0,0.12); }
+        .modal-name.dark .edit-pencil-btn:active { background: rgba(0,0,0,0.22); }
         .time-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; gap: 8px; }
         .duration-row { text-align: center; font-size: 13px; font-weight: 800; color: #888; padding: 2px 0 6px; }
         .time-row .time-label { font-weight: 800; font-size: 13px; color: #888; min-width: 36px; }
@@ -225,7 +235,10 @@
 
 <div class="modal-bg" id="modal-bg" onclick="closeEdit()"></div>
 <div class="modal-card" id="modal-card">
-    <div class="modal-name" id="edit-name"></div>
+    <div class="modal-name" id="edit-name" style="display:flex; align-items:center; justify-content:center;">
+        <span id="edit-name-text"></span>
+        <button class="edit-pencil-btn" onclick="openEditPlacedNameModal()" title="名前・アイコン・色を変える">✎</button>
+    </div>
     <div class="time-row">
         <span class="time-label">開始</span>
         <button class="time-btn" onclick="adjustTime('start',-1)">−</button>
@@ -299,6 +312,7 @@
     let selIcon  = null;
     let selTask  = null;
     let editingTaskId = null;
+    let editingPlacedId = null;
     let lastAutoFill = '';
     let tapStep  = 0;   // 0=idle 1=waiting for end tap
     let tapStart = null;
@@ -482,9 +496,10 @@
         const p = placed.find(x => x.id === id);
         if(!p) return;
         const nameEl = document.getElementById('edit-name');
-        nameEl.textContent = p.name;
+        document.getElementById('edit-name-text').textContent = p.name;
         nameEl.style.background = p.color;
         nameEl.style.color = textColorFor(p.color);
+        nameEl.classList.toggle('dark', textColorFor(p.color) === '#2D2D2D');
         renderEditTimes();
         const dBtn = document.getElementById('done-btn');
         dBtn.classList.toggle('done-btn', !p.done);
@@ -625,6 +640,7 @@
     }
     function openNewTaskModal(){
         editingTaskId = null;
+        editingPlacedId = null;
         document.getElementById('new-task-title').textContent = '新しいタスク';
         document.getElementById('task-save-btn').textContent = '＋ 追加';
         document.getElementById('task-edit-del-btn').style.display = 'none';
@@ -639,6 +655,7 @@
     }
     function openEditTaskModal(t){
         editingTaskId = t.id;
+        editingPlacedId = null;
         document.getElementById('new-task-title').textContent = 'タスクを変える';
         document.getElementById('task-save-btn').textContent = '✓ 保存';
         document.getElementById('task-edit-del-btn').style.display = '';
@@ -655,10 +672,41 @@
         document.getElementById('new-task-modal-bg').classList.remove('open');
         document.getElementById('new-task-modal-card').classList.remove('open');
         editingTaskId = null;
+        editingPlacedId = null;
     }
     function saveTaskFromModal(){
-        if(editingTaskId === null) addTask();
+        if(editingPlacedId !== null) applyPlacedEdit();
+        else if(editingTaskId === null) addTask();
         else applyTaskEdit();
+    }
+    function openEditPlacedNameModal(){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        closeEdit();
+        editingPlacedId = p.id;
+        editingTaskId = null;
+        document.getElementById('new-task-title').textContent = '予定をへんしゅう';
+        document.getElementById('task-save-btn').textContent = '✓ 保存';
+        document.getElementById('task-edit-del-btn').style.display = 'none';
+        selIcon = detectIconFromName(p.name);
+        selColor = p.color;
+        document.getElementById('task-input').value = p.name;
+        lastAutoFill = '';
+        renderIconRow(); renderColorRow(); updateInputPlaceholder();
+        document.getElementById('new-task-modal-bg').classList.add('open');
+        document.getElementById('new-task-modal-card').classList.add('open');
+        setTimeout(() => document.getElementById('task-input').focus(), 50);
+    }
+    function applyPlacedEdit(){
+        const p = placed.find(x => x.id === editingPlacedId);
+        if(!p){ closeNewTaskModal(); return; }
+        const name = parseTaskInput();
+        if(name === null) return;
+        p.name = name;
+        p.color = selColor;
+        save();
+        renderPlaced();
+        closeNewTaskModal();
     }
     function applyTaskEdit(){
         const t = tasks.find(x => x.id === editingTaskId);
