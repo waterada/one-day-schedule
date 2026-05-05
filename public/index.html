@@ -599,16 +599,25 @@
     }
 
     // ── TASKS ──
-    function addTask(){
+    function parseTaskInput(){
         const inp = document.getElementById('task-input');
         let typed = inp.value.trim();
-        if(selIcon && typed.startsWith(selIcon + ' ')) typed = typed.slice(selIcon.length + 1).trim();
-        else if(selIcon && typed === selIcon) typed = '';
+        // Strip any known icon prefix — even from a previously-selected icon, so swapping icons doesn't double up.
+        const matched = PALETTE_ICONS.find(ic => typed === ic.emoji || typed.startsWith(ic.emoji + ' '));
+        if(matched){
+            typed = typed === matched.emoji ? '' : typed.slice(matched.emoji.length + 1).trim();
+        }
         if(!typed && selIcon) typed = getIconName(selIcon);
-        if(!typed){ inp.focus(); return; }
-        const name = selIcon ? `${selIcon} ${typed}` : typed;
+        if(!typed){ inp.focus(); return null; }
+        return selIcon ? `${selIcon} ${typed}` : typed;
+    }
+    function addTask(){
+        const name = parseTaskInput();
+        if(name === null) return;
         const t = {id:Date.now(), name, color:selColor};
-        tasks.push(t); inp.value=''; save();
+        tasks.push(t);
+        document.getElementById('task-input').value = '';
+        save();
         pickUnusedColor(); renderColorRow();
         renderTaskList(); selectTask(t);
         closeNewTaskModal();
@@ -634,9 +643,8 @@
         document.getElementById('task-edit-del-btn').style.display = '';
         selIcon = detectIconFromName(t.name);
         selColor = t.color;
-        const stripped = selIcon ? t.name.slice(selIcon.length + 1) : t.name;
-        document.getElementById('task-input').value = stripped;
-        lastAutoFill = selIcon ? getIconName(selIcon) : '';
+        document.getElementById('task-input').value = t.name;
+        lastAutoFill = '';
         renderIconRow(); renderColorRow(); updateInputPlaceholder();
         document.getElementById('new-task-modal-bg').classList.add('open');
         document.getElementById('new-task-modal-card').classList.add('open');
@@ -654,13 +662,9 @@
     function applyTaskEdit(){
         const t = tasks.find(x => x.id === editingTaskId);
         if(!t){ closeNewTaskModal(); return; }
-        const inp = document.getElementById('task-input');
-        let typed = inp.value.trim();
-        if(selIcon && typed.startsWith(selIcon + ' ')) typed = typed.slice(selIcon.length + 1).trim();
-        else if(selIcon && typed === selIcon) typed = '';
-        if(!typed && selIcon) typed = getIconName(selIcon);
-        if(!typed){ inp.focus(); return; }
-        t.name = selIcon ? `${selIcon} ${typed}` : typed;
+        const name = parseTaskInput();
+        if(name === null) return;
+        t.name = name;
         t.color = selColor;
         save();
         renderTaskList();
@@ -747,10 +751,11 @@
         const inp = document.getElementById('task-input');
         if(selIcon){
             const name = getIconName(selIcon);
-            inp.placeholder = name ? `${selIcon} ${name}` : selIcon;
-            if(name && (inp.value === '' || inp.value === lastAutoFill)){
-                inp.value = name;
-                lastAutoFill = name;
+            const auto = name ? `${selIcon} ${name}` : `${selIcon} `;
+            inp.placeholder = auto;
+            if(inp.value === '' || inp.value === lastAutoFill){
+                inp.value = auto;
+                lastAutoFill = auto;
             }
         } else {
             inp.placeholder = 'やること...';
