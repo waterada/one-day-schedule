@@ -370,7 +370,6 @@
 
             placed.push({
                 id: Date.now(),
-                srcTaskId: selTask.id,
                 name: selTask.name,
                 color: selTask.color,
                 startH: slotToHour(startSlot),
@@ -663,14 +662,8 @@
         if(!typed){ inp.focus(); return; }
         t.name = selIcon ? `${selIcon} ${typed}` : typed;
         t.color = selColor;
-        placed.forEach(p => {
-            if(p.srcTaskId === t.id){
-                p.name = t.name;
-                p.color = t.color;
-            }
-        });
         save();
-        renderTaskList(); renderPlaced();
+        renderTaskList();
         closeNewTaskModal();
     }
     function deleteTaskFromModal(){
