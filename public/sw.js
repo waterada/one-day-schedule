@@ -40,16 +40,19 @@ self.addEventListener('fetch', (event) => {
 
     event.respondWith(
         caches.match(req).then((cached) => {
+            // iOS Safari refuses to serve cached responses whose `redirected` flag is true
+            // ("Response served by service worker has redirections"). Drop them and refetch.
+            const cachedSafe = (cached && !cached.redirected) ? cached : null;
             const fetchPromise = fetch(req)
                 .then((res) => {
-                    if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
+                    if (res && res.status === 200 && !res.redirected && (res.type === 'basic' || res.type === 'cors')) {
                         const copy = res.clone();
                         caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
                     }
                     return res;
                 })
-                .catch(() => cached);
-            return cached || fetchPromise;
+                .catch(() => cachedSafe);
+            return cachedSafe || fetchPromise;
         })
     );
 });
