@@ -83,12 +83,12 @@
         .task-input { width: 100%; padding: 8px 10px; border: 2px solid #eee; border-radius: 9px; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; outline: none; transition: background-color .15s, color .15s; }
         .task-input:focus { border-color: #4ECDC4; }
         .task-input::placeholder { color: var(--ph-color, #999); opacity: 1; }
-        .color-row { display: flex; flex-wrap: wrap; gap: 5px; }
-        .cdot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color .15s, transform .15s; }
-        .cdot.sel { border-color: #2D2D2D; transform: scale(1.2); }
-        .icon-row { display: flex; flex-wrap: wrap; gap: 4px; }
-        .idot { width: 26px; height: 26px; border-radius: 7px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 16px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
-        .idot.sel { border-color: #2D2D2D; transform: scale(1.15); background: white; }
+        .color-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .cdot { width: 36px; height: 36px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: border-color .15s, transform .15s; }
+        .cdot.sel { border-color: #2D2D2D; transform: scale(1.15); }
+        .icon-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .idot { width: 42px; height: 42px; border-radius: 9px; cursor: pointer; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; font-size: 24px; background: #F7F3EE; transition: border-color .15s, transform .15s; }
+        .idot.sel { border-color: #2D2D2D; transform: scale(1.1); background: white; }
 
         /* task list */
         .task-list { padding: 7px; display: flex; flex-direction: column; gap: 5px; }
@@ -101,8 +101,8 @@
         }
         .tchip.active { outline: 3px solid #2D2D2D; outline-offset: 2px; }
         .tchip .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tchip .tedit { background: rgba(255,255,255,0.3); border: none; color: white; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-        .tchip .thandle { background: rgba(255,255,255,0.3); border: none; color: white; width: 28px; height: 28px; border-radius: 6px; font-size: 14px; cursor: grab; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; }
+        .tchip .tedit { background: rgba(255,255,255,0.3); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; font-size: 14px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+        .tchip .thandle { background: rgba(255,255,255,0.3); border: none; color: white; width: 36px; height: 36px; border-radius: 7px; font-size: 18px; cursor: grab; font-family: 'Nunito', sans-serif; font-weight: 900; flex-shrink: 0; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; justify-content: center; }
         .tchip .thandle:active { cursor: grabbing; background: rgba(255,255,255,0.5); }
         .tchip.dark { color: #2D2D2D; }
         .tchip.dark .tedit,
@@ -135,7 +135,7 @@
         .duration-row { text-align: center; font-size: 13px; font-weight: 800; color: #888; padding: 2px 0 6px; }
         .time-row .time-label { font-weight: 800; font-size: 13px; color: #888; min-width: 36px; }
         .time-row .time-val { font-size: 20px; font-weight: 900; flex: 1; text-align: center; }
-        .time-btn { background: #4ECDC4; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: 900; cursor: pointer; font-family: 'Nunito', sans-serif; flex-shrink: 0; }
+        .time-btn { background: #4ECDC4; color: white; border: none; border-radius: 50%; width: 48px; height: 48px; font-size: 22px; font-weight: 900; cursor: pointer; font-family: 'Nunito', sans-serif; flex-shrink: 0; }
         .modal-btn { border: none; border-radius: 9px; padding: 12px; font-weight: 900; font-size: 14px; cursor: pointer; font-family: 'Nunito', sans-serif; }
         .modal-btn.close-btn { background: #4ECDC4; color: white; padding: 16px; font-size: 16px; }
         .modal-divider { height: 1px; background: #eee; margin: 8px -4px 4px; }
@@ -146,6 +146,8 @@
         .modal-btn.undo-btn { background: #FFB347; color: white; }
         .modal-btn.del-btn  { background: #FF6B6B; color: white; }
         .modal-btn.shift-btn { background: #5C7AEA; color: white; }
+
+        .app-version { position: fixed; bottom: 4px; right: 8px; font-size: 10px; font-weight: 700; color: #ccc; pointer-events: none; z-index: 50; letter-spacing: 0.5px; }
     </style>
 
 </head>
@@ -175,6 +177,8 @@
 
     </div>
 </div>
+
+<div class="app-version" id="app-version"></div>
 
 <div class="modal-bg" id="new-task-modal-bg" onclick="closeNewTaskModal()"></div>
 <div class="modal-card" id="new-task-modal-card">
@@ -223,6 +227,8 @@
 </div>
 
 <script>
+    const APP_VERSION = '1.0.0';
+
     const SLOT_H = 30;    // px per 15min slot
     const START_H = 7;
     const END_H = 22;
@@ -842,6 +848,7 @@
     function init(){
         const now=new Date(), days=['日','月','火','水','木','金','土'];
         document.getElementById('date-label').textContent = `${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
+        document.getElementById('app-version').textContent = `v${APP_VERSION}`;
         renderIconRow(); renderColorRow(); buildTimeline(); renderTaskList(); renderPlaced(); renderDoneCounter(); updateHint();
         updateInputPlaceholder();
         scrollToNow();
