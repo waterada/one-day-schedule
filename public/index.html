@@ -63,19 +63,15 @@
         .panel {
             width: 180px; flex-shrink: 0;
             display: flex; flex-direction: column; gap: 10px;
+            position: sticky; top: 14px; align-self: flex-start;
+            height: calc(100vh - 28px);
+            height: calc(100dvh - 28px);
         }
-        .panel .task-list { max-height: 50vh; overflow-y: auto; }
+        .panel .card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .panel .task-list { flex: 1; min-height: 0; overflow-y: auto; }
 
-        /* Wider screens (iPad / PC) get a wider sticky sidebar. */
         @media (min-width: 700px) {
-            .panel {
-                width: 200px;
-                position: sticky; top: 14px; align-self: flex-start;
-                height: calc(100vh - 28px);
-                height: calc(100dvh - 28px);
-            }
-            .panel .card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-            .panel .task-list { flex: 1; min-height: 0; max-height: none; }
+            .panel { width: 200px; }
         }
 
         .hint {
