@@ -226,9 +226,8 @@
     </div>
 </div>
 
+<script src="version.js"></script>
 <script>
-    const APP_VERSION = '1.0.0';
-
     const SLOT_H = 30;    // px per 15min slot
     const START_H = 7;
     const END_H = 22;
@@ -274,6 +273,7 @@
     let selIcon  = null;
     let selTask  = null;
     let editingTaskId = null;
+    let lastAutoFill = '';
     let tapStep  = 0;   // 0=idle 1=waiting for end tap
     let tapStart = null;
     let editId   = null;
@@ -568,6 +568,7 @@
         document.getElementById('task-edit-del-btn').style.display = 'none';
         document.getElementById('task-input').value = '';
         selIcon = null;
+        lastAutoFill = '';
         pickUnusedColor();
         renderIconRow(); renderColorRow(); updateInputPlaceholder();
         document.getElementById('new-task-modal-bg').classList.add('open');
@@ -583,6 +584,7 @@
         selColor = t.color;
         const stripped = selIcon ? t.name.slice(selIcon.length + 1) : t.name;
         document.getElementById('task-input').value = stripped;
+        lastAutoFill = selIcon ? getIconName(selIcon) : '';
         renderIconRow(); renderColorRow(); updateInputPlaceholder();
         document.getElementById('new-task-modal-bg').classList.add('open');
         document.getElementById('new-task-modal-card').classList.add('open');
@@ -697,7 +699,20 @@
     }
     function updateInputPlaceholder(){
         const inp = document.getElementById('task-input');
-        inp.placeholder = (selIcon && getIconName(selIcon)) || 'やること...';
+        if(selIcon){
+            const name = getIconName(selIcon);
+            inp.placeholder = name ? `${selIcon} ${name}` : selIcon;
+            if(name && (inp.value === '' || inp.value === lastAutoFill)){
+                inp.value = name;
+                lastAutoFill = name;
+            }
+        } else {
+            inp.placeholder = 'やること...';
+            if(lastAutoFill && inp.value === lastAutoFill){
+                inp.value = '';
+            }
+            lastAutoFill = '';
+        }
     }
     function renderIconRow(){
         const row = document.getElementById('icon-row'); row.innerHTML='';

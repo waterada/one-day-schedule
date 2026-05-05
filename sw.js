@@ -1,10 +1,11 @@
-const CACHE_VERSION = 'v2';
-const CACHE_NAME = `schedule-${CACHE_VERSION}`;
+importScripts('./version.js');
+const CACHE_NAME = `schedule-v${APP_VERSION}`;
 
 const PRECACHE_URLS = [
     './',
     './index.html',
     './manifest.json',
+    './version.js',
     './icons/icon-180.png',
     './icons/icon-192.png',
     './icons/icon-512.png',
