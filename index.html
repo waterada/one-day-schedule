@@ -131,6 +131,7 @@
         .modal-card.open { display: flex; }
         .modal-name { text-align: center; padding: 10px 12px; border-radius: 9px; color: white; font-weight: 900; font-size: 15px; }
         .time-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; gap: 8px; }
+        .duration-row { text-align: center; font-size: 13px; font-weight: 800; color: #888; padding: 2px 0 6px; }
         .time-row .time-label { font-weight: 800; font-size: 13px; color: #888; min-width: 36px; }
         .time-row .time-val { font-size: 20px; font-weight: 900; flex: 1; text-align: center; }
         .time-btn { background: #4ECDC4; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; font-weight: 900; cursor: pointer; font-family: 'Nunito', sans-serif; flex-shrink: 0; }
@@ -202,6 +203,7 @@
         <span class="time-val" id="edit-end"></span>
         <button class="time-btn" onclick="adjustTime('end',1)">＋</button>
     </div>
+    <div class="duration-row" id="edit-duration"></div>
     <button class="modal-btn close-btn" onclick="closeEdit()">閉じる</button>
     <div class="modal-divider"></div>
     <div class="modal-sub-label">↓ 後続をまとめてずらす</div>
@@ -226,7 +228,7 @@
     const SLOTS = (END_H - START_H) * 4; // 15min slots
     const FINE_STEP_MIN = 5; // minutes for ± buttons in edit modal
 
-    const COLORS = ['#FF6B6B','#FF8E53','#FFB347','#FFD93D','#6ab04c','#4ECDC4','#45B7D1','#5C7AEA','#C3B1E1','#E08DAC'];
+    const COLORS = ['#FF6B6B','#FF8E53','#FFB347','#FFD93D','#6ab04c','#4ECDC4','#45B7D1','#5C7AEA','#C3B1E1','#E08DAC','#A8A8A8'];
     const PALETTE_ICONS = [
         {emoji:'🍚', name:'ごはん'},
         {emoji:'📝', name:'勉強'},
@@ -236,7 +238,8 @@
         {emoji:'👗', name:'きがえ'},
         {emoji:'🛁', name:'おふろ'},
         {emoji:'🪥', name:'はみがき'},
-        {emoji:'😴', name:'ねる'}
+        {emoji:'😴', name:'ねる'},
+        {emoji:'🎒', name:'準備'}
     ];
 
     let tasks  = JSON.parse(localStorage.getItem('tsk5') || '[]');
@@ -463,6 +466,7 @@
         if(!p) return;
         document.getElementById('edit-start').textContent = fmt(p.startH);
         document.getElementById('edit-end').textContent   = fmt(p.startH + p.duration);
+        document.getElementById('edit-duration').textContent = `（${Math.round(p.duration * 60)}分間）`;
     }
 
     function adjustTime(which, dir){
