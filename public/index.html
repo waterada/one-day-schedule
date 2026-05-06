@@ -18,7 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-        button { touch-action: manipulation; }
+        html { touch-action: manipulation; }
         body { font-family: 'Nunito', sans-serif; background: #F7F3EE; color: #2D2D2D; min-height: 100vh; padding: 14px; }
 
         header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -28,12 +28,21 @@
         .btn-notify { background: #eee; border: none; border-radius: 16px; padding: 6px 12px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: #666; cursor: pointer; }
         .btn-notify.on { background: #4ECDC4; color: white; box-shadow: 0 2px 6px rgba(78,205,196,0.4); }
         .btn-notify.busy { opacity: 0.5; pointer-events: none; }
+        .btn-toggle-panel {
+            background: rgba(0,0,0,0.06); border: none; color: #888;
+            width: 30px; height: 30px; border-radius: 50%;
+            font-size: 15px; font-family: 'Nunito', sans-serif; font-weight: 900;
+            cursor: pointer; flex-shrink: 0; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-toggle-panel.active { background: #4ECDC4; color: white; }
 
         .layout { display: flex; gap: 12px; align-items: flex-start; }
+        .layout.panel-hidden .panel { display: none; }
 
         /* ── TIMELINE ── */
         .tl-wrap { flex: 1; min-width: 0; background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
-        .tl-head { padding: 10px 14px; font-weight: 900; font-size: 13px; color: #888; border-bottom: 1px solid #eee; }
+        .tl-head { padding: 8px 14px; font-weight: 900; font-size: 13px; color: #888; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
         .tl-body { position: relative; padding-left: 42px; }
 
         .slot {
@@ -232,7 +241,10 @@
 
 <div class="layout">
     <div class="tl-wrap">
-        <div class="tl-head" id="tl-head">タイムライン</div>
+        <div class="tl-head" id="tl-head">
+            <span>タイムライン</span>
+            <button class="btn-toggle-panel" id="btn-toggle-panel" type="button" title="タスク一覧をかくす" onclick="togglePanel()">📋</button>
+        </div>
         <div class="tl-body" id="tl-body"></div>
     </div>
     <div class="panel">
@@ -812,6 +824,22 @@
         document.getElementById('task-list-edit-toggle').classList.toggle('active', editMode);
     }
 
+    const KEY_PANEL_HIDDEN = 'panelHidden';
+    function applyPanelState(){
+        const hidden = localStorage.getItem(KEY_PANEL_HIDDEN) === '1';
+        document.querySelector('.layout').classList.toggle('panel-hidden', hidden);
+        const btn = document.getElementById('btn-toggle-panel');
+        if(btn){
+            btn.classList.toggle('active', hidden);
+            btn.title = hidden ? 'タスク一覧をだす' : 'タスク一覧をかくす';
+        }
+    }
+    function togglePanel(){
+        const hidden = localStorage.getItem(KEY_PANEL_HIDDEN) === '1';
+        localStorage.setItem(KEY_PANEL_HIDDEN, hidden ? '0' : '1');
+        applyPanelState();
+    }
+
     function renderColorRow(){
         const row = document.getElementById('color-row'); row.innerHTML='';
         COLORS.forEach(c => {
@@ -1295,6 +1323,7 @@
         document.getElementById('app-version').textContent = `v${APP_VERSION}`;
         renderIconRow(); renderColorRow(); buildTimeline(); renderTaskList(); renderPlaced(); renderDoneCounter(); updateHint();
         updateInputPlaceholder();
+        applyPanelState();
         scrollToNow();
         checkEndChime();
         setInterval(()=>{
