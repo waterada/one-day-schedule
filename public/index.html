@@ -206,15 +206,6 @@
             pointer-events: none; z-index: 50; letter-spacing: 0.5px;
         }
 
-        .add-here-btn {
-            position: absolute; right: 8px; background: #4ECDC4; color: white; border: none;
-            border-radius: 14px; padding: 5px 12px; font-family: 'Nunito', sans-serif;
-            font-size: 12px; font-weight: 900; cursor: pointer; z-index: 25;
-            transform: translateY(-50%); box-shadow: 0 2px 8px rgba(78,205,196,0.45);
-            white-space: nowrap;
-        }
-        .add-here-btn:active { transform: translateY(-50%) scale(0.95); }
-
         /* sync status indicator (visible only on auth error) */
         .header-right { display: flex; align-items: center; gap: 8px; }
         .sync-pill {
@@ -526,7 +517,16 @@
             time.className = 'block-time';
             time.textContent = `${fmt(p.startH)}〜${fmt(p.startH+p.duration)}`;
             el.appendChild(label); el.appendChild(time);
-            el.addEventListener('click', () => openEdit(p.id));
+            el.addEventListener('click', () => {
+                if(selTask){
+                    const endH = p.startH + p.duration;
+                    if(endH >= END_H - 1e-6) return;
+                    const slot = Math.round((endH - START_H) * 4);
+                    onSlotTap(slot);
+                } else {
+                    openEdit(p.id);
+                }
+            });
             body.appendChild(el);
         });
 
@@ -635,33 +635,9 @@
             bar.style.display = 'none';
         } else {
             bar.style.display = '';
-            if(tapStep === 0){ bar.textContent = '開始時間をタップ'; bar.className='hint'; }
+            if(tapStep === 0){ bar.textContent = '開始時間をタップ（既存タスクをタップでその直後）'; bar.className='hint'; }
             else             { bar.textContent = `${fmt(slotToHour(tapStart))} 〜 終了時間をタップ`; bar.className='hint step2'; }
         }
-        updateAddHereButton();
-    }
-
-    function updateAddHereButton(){
-        document.querySelectorAll('.add-here-btn').forEach(el => el.remove());
-        if(!selTask || tapStep !== 0 || !placed.length) return;
-        let lastEnd = -Infinity;
-        for(const p of placed){
-            const e = p.startH + p.duration;
-            if(e > lastEnd) lastEnd = e;
-        }
-        if(lastEnd >= END_H - 1e-6) return;
-        const body = document.getElementById('tl-body');
-        if(!body) return;
-        const btn = document.createElement('button');
-        btn.className = 'add-here-btn';
-        btn.textContent = '+ ここに追加';
-        btn.style.top = `${(lastEnd - START_H) * 4 * SLOT_H}px`;
-        btn.onclick = (ev) => {
-            ev.stopPropagation();
-            const slot = Math.round((lastEnd - START_H) * 4);
-            onSlotTap(slot);
-        };
-        body.appendChild(btn);
     }
 
     // ── TASKS ──
