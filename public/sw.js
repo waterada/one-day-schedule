@@ -30,6 +30,32 @@ self.addEventListener('activate', (event) => {
     self.clients.claim();
 });
 
+self.addEventListener('push', (event) => {
+    let data = { title: 'もうすぐタスクがおわるよ', body: '', tag: 'task' };
+    try {
+        if (event.data) data = Object.assign(data, event.data.json());
+    } catch (_) { /* malformed payload — fall back to default */ }
+    event.waitUntil(self.registration.showNotification(data.title, {
+        body: data.body,
+        tag: data.tag,
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        renotify: true,
+        requireInteraction: false,
+    }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    event.waitUntil((async () => {
+        const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of all) {
+            if ('focus' in c) return c.focus();
+        }
+        if (self.clients.openWindow) return self.clients.openWindow('./');
+    })());
+});
+
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET') return;

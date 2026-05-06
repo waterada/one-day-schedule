@@ -25,6 +25,9 @@
         .date { font-size: 18px; font-weight: 900; }
         .date small { font-size: 12px; font-weight: 600; color: #999; display: block; }
         .btn-reset { background: #eee; border: none; border-radius: 16px; padding: 6px 14px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 13px; color: #666; cursor: pointer; }
+        .btn-notify { background: #eee; border: none; border-radius: 16px; padding: 6px 12px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; color: #666; cursor: pointer; }
+        .btn-notify.on { background: #4ECDC4; color: white; box-shadow: 0 2px 6px rgba(78,205,196,0.4); }
+        .btn-notify.busy { opacity: 0.5; pointer-events: none; }
 
         .layout { display: flex; gap: 12px; align-items: flex-start; }
 
@@ -76,16 +79,17 @@
 
         .hint {
             position: fixed;
-            top: max(14px, calc(env(safe-area-inset-top) + 8px));
+            top: max(10px, calc(env(safe-area-inset-top) + 6px));
             left: 50%; transform: translateX(-50%);
             z-index: 50;
-            border-radius: 14px;
-            padding: 12px 20px;
-            font-size: 15px; font-weight: 800;
-            text-align: center; line-height: 1.5;
+            border-radius: 10px;
+            padding: 5px 12px;
+            font-size: 12px; font-weight: 800;
+            text-align: center; line-height: 1.3;
             background: #FFE66D; color: #6b5900;
-            box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.12);
             max-width: calc(100vw - 28px);
+            white-space: nowrap;
             pointer-events: none;
         }
         .hint.step2 { background: #4ECDC4; color: white; }
@@ -221,6 +225,7 @@
     <div class="date"><span id="date-label"></span><small>今日のスケジュール</small></div>
     <div class="header-right">
         <div id="sync-pill" class="sync-pill" data-state="idle" title=""></div>
+        <button class="btn-notify" id="btn-notify" type="button" title="通知のオン/オフ" style="display:none;">🔔</button>
         <button class="btn-reset" onclick="resetDay()">リセット</button>
     </div>
 </header>
@@ -618,8 +623,8 @@
             bar.style.display = 'none';
         } else {
             bar.style.display = '';
-            if(tapStep === 0){ bar.innerHTML = `<b>${selTask.name}</b><br>開始時間をタップ`; bar.className='hint'; }
-            else             { bar.innerHTML = `<b>${selTask.name}</b><br>${fmt(slotToHour(tapStart))} 〜<br>終了時間をタップ`; bar.className='hint step2'; }
+            if(tapStep === 0){ bar.textContent = '開始時間をタップ'; bar.className='hint'; }
+            else             { bar.textContent = `${fmt(slotToHour(tapStart))} 〜 終了時間をタップ`; bar.className='hint step2'; }
         }
         updateAddHereButton();
     }
@@ -1161,6 +1166,129 @@
         return { init, markDirty };
     })();
 
+    // ── PUSH NOTIFICATIONS ──
+    const push = (() => {
+        const KEY_ENABLED = 'pushEnabled';
+        const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+        let enabled = false;
+        let busy = false;
+
+        function isStandalone(){
+            if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return true;
+            return navigator.standalone === true;  // iOS Safari legacy
+        }
+
+        function urlBase64ToUint8Array(b64u){
+            const padding = '='.repeat((4 - b64u.length % 4) % 4);
+            const base64 = (b64u + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = atob(base64);
+            const out = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+            return out;
+        }
+
+        function authedFetch(url, init){
+            const pass = localStorage.getItem('serverPassphrase') || '';
+            const headers = Object.assign({}, (init && init.headers) || {}, { authorization: 'Bearer ' + pass });
+            return fetch(url, Object.assign({}, init, { headers }));
+        }
+
+        function render(){
+            const btn = document.getElementById('btn-notify');
+            if (!btn) return;
+            if (!supported) { btn.style.display = 'none'; return; }
+            btn.style.display = '';
+            btn.classList.toggle('on', enabled);
+            btn.classList.toggle('busy', busy);
+            btn.textContent = enabled ? '🔔 ON' : '🔔';
+        }
+
+        async function enable(){
+            if (!supported) { alert('このアプリでは 通知が つかえないみたい。'); return; }
+            if (!isStandalone()) {
+                alert('「ホームがめん」に このアプリを だしてから ON にしてね。\n\n（Safariでひらいているときは 通知できないよ）');
+                return;
+            }
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') {
+                alert('通知が きょかされなかったよ。\nアイフォンの「せってい」→「通知」も みてみてね。');
+                return;
+            }
+            const reg = await navigator.serviceWorker.ready;
+            let pubKey;
+            try {
+                const r = await fetch('/api/push/public-key');
+                if (!r.ok) throw new Error('http ' + r.status);
+                pubKey = (await r.json()).publicKey;
+            } catch (_) {
+                alert('せってい きー が とれなかった。あとで またためしてね。');
+                return;
+            }
+            let sub;
+            try {
+                sub = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(pubKey),
+                });
+            } catch (_) {
+                alert('通知のとうろくに しっぱい。 すこしまってから もういちど。');
+                return;
+            }
+            const j = sub.toJSON();
+            const r = await authedFetch('/api/push/subscribe', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ endpoint: j.endpoint, keys: j.keys }),
+            });
+            if (!r.ok) {
+                alert('サーバに とうろくできなかった。 あいことば あってる？');
+                try { await sub.unsubscribe(); } catch (_) {}
+                return;
+            }
+            enabled = true;
+            localStorage.setItem(KEY_ENABLED, '1');
+        }
+
+        async function disable(){
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.getSubscription();
+                if (sub) await sub.unsubscribe();
+            } catch (_) {}
+            try {
+                await authedFetch('/api/push/subscribe', { method: 'DELETE' });
+            } catch (_) {}
+            enabled = false;
+            localStorage.setItem(KEY_ENABLED, '0');
+        }
+
+        async function init(){
+            if (!supported) { render(); return; }
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.getSubscription();
+                enabled = !!sub;
+                localStorage.setItem(KEY_ENABLED, enabled ? '1' : '0');
+            } catch (_) {}
+            render();
+            const btn = document.getElementById('btn-notify');
+            if (btn) {
+                btn.onclick = async () => {
+                    if (busy) return;
+                    busy = true; render();
+                    try {
+                        if (enabled) await disable();
+                        else await enable();
+                    } finally {
+                        busy = false; render();
+                    }
+                };
+            }
+        }
+
+        return { init };
+    })();
+
     function init(){
         const now=new Date(), days=['日','月','火','水','木','金','土'];
         document.getElementById('date-label').textContent = `${now.getMonth()+1}月${now.getDate()}日（${days[now.getDay()]}）`;
@@ -1175,6 +1303,7 @@
             checkEndChime();
         }, 60000);
         sync.init();
+        push.init();
     }
     init();
 

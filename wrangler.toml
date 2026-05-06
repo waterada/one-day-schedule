@@ -14,3 +14,6 @@ class_name = "ScheduleDO"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ScheduleDO"]
+
+[triggers]
+crons = ["* * * * *"]

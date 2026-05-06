@@ -7,6 +7,9 @@ interface Env {
   ASSETS: Fetcher;
   SCHEDULE_DO: DurableObjectNamespace;
   SHARED_SECRET: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 }
 
 const DO_NAME = "daughter";
@@ -21,9 +24,24 @@ export default {
 
     return env.ASSETS.fetch(request);
   },
+
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const id = env.SCHEDULE_DO.idFromName(DO_NAME);
+    const stub = env.SCHEDULE_DO.get(id);
+    ctx.waitUntil(
+      stub.fetch("https://do.local/tick-notifications", { method: "POST" })
+        .catch((e) => console.warn("tick-notifications failed", e)),
+    );
+  },
 } satisfies ExportedHandler<Env>;
 
 async function handleApi(request: Request, env: Env, url: URL): Promise<Response> {
+  // Public endpoint: VAPID public key (no Bearer required so the SW can fetch before auth flow).
+  if (url.pathname === "/api/push/public-key" && request.method === "GET") {
+    if (!env.VAPID_PUBLIC_KEY) return json(503, { error: "vapid_not_configured" });
+    return json(200, { publicKey: env.VAPID_PUBLIC_KEY });
+  }
+
   if (!env.SHARED_SECRET) {
     return json(500, { error: "secret_not_configured" });
   }
@@ -35,18 +53,30 @@ async function handleApi(request: Request, env: Env, url: URL): Promise<Response
   }
 
   if (url.pathname === "/api/state") {
-    const id = env.SCHEDULE_DO.idFromName(DO_NAME);
-    const stub = env.SCHEDULE_DO.get(id);
-    // Forward to DO with a stable internal URL.
-    const forwardUrl = new URL("https://do.local/state");
-    return stub.fetch(forwardUrl.toString(), {
-      method: request.method,
-      headers: { "content-type": "application/json" },
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
-    });
+    return forwardToDo(request, env, "/state");
+  }
+
+  if (url.pathname === "/api/push/subscribe") {
+    if (request.method !== "POST" && request.method !== "DELETE") {
+      return json(405, { error: "method_not_allowed" });
+    }
+    return forwardToDo(request, env, "/push/subscribe");
   }
 
   return json(404, { error: "not_found" });
+}
+
+async function forwardToDo(request: Request, env: Env, doPath: string): Promise<Response> {
+  const id = env.SCHEDULE_DO.idFromName(DO_NAME);
+  const stub = env.SCHEDULE_DO.get(id);
+  const init: RequestInit = {
+    method: request.method,
+    headers: { "content-type": "application/json" },
+    body: request.method === "GET" || request.method === "HEAD" || request.method === "DELETE"
+      ? undefined
+      : await request.text(),
+  };
+  return stub.fetch(`https://do.local${doPath}`, init);
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
