@@ -555,7 +555,16 @@
         if(!p) return;
         document.getElementById('edit-start').textContent = fmt(p.startH);
         document.getElementById('edit-end').textContent   = fmt(p.startH + p.duration);
-        document.getElementById('edit-duration').textContent = `（${Math.round(p.duration * 60)}分間）`;
+        const totalMin = Math.round(p.duration * 60);
+        let durText;
+        if(totalMin < 60){
+            durText = `${totalMin}分間`;
+        } else {
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            durText = m === 0 ? `${h}時間` : `${h}時間${m}分`;
+        }
+        document.getElementById('edit-duration').textContent = `（${durText}）`;
     }
 
     function adjustTime(which, dir){
