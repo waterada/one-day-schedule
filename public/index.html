@@ -289,6 +289,7 @@
     </div>
     <div class="duration-row" id="edit-duration"></div>
     <button class="modal-btn close-btn" id="edit-close-btn" onclick="closeEdit()">閉じる</button>
+    <button class="modal-btn shift-btn" id="edit-snap-btn" style="display:none;" onclick="snapToPrev()">⏮ 前の予定にくっつける</button>
     <button class="modal-btn" id="edit-cancel-btn" style="background:#eee;color:#666;display:none;" onclick="cancelNewPlacement()">✕ キャンセル</button>
     <div id="edit-shift-section">
         <div class="modal-divider"></div>
@@ -495,16 +496,7 @@
             time.className = 'block-time';
             time.textContent = `${fmt(p.startH)}〜${fmt(p.startH+p.duration)}`;
             el.appendChild(label); el.appendChild(time);
-            el.addEventListener('click', () => {
-                if(selTask){
-                    const endH = p.startH + p.duration;
-                    if(endH >= END_H - 1e-6) return;
-                    const slot = Math.round((endH - START_H) * 4);
-                    placeAt(slot);
-                } else {
-                    openEdit(p.id);
-                }
-            });
+            el.addEventListener('click', () => openEdit(p.id));
             body.appendChild(el);
         });
 
@@ -536,6 +528,7 @@
         dBtn.textContent = p.done ? '↩ もどす' : '✓ おわった';
         document.getElementById('edit-close-btn').textContent = isNew ? '✓ OK' : '閉じる';
         document.getElementById('edit-cancel-btn').style.display = isNew ? '' : 'none';
+        document.getElementById('edit-snap-btn').style.display = isNew ? '' : 'none';
         document.getElementById('edit-shift-section').style.display = isNew ? 'none' : '';
         document.getElementById('edit-finish-section').style.display = isNew ? 'none' : '';
         document.getElementById('modal-bg').classList.add('open');
@@ -603,6 +596,22 @@
         save(); renderPlaced(); renderDoneCounter();
     }
 
+    function snapToPrev(){
+        const p = placed.find(x => x.id === editId);
+        if(!p) return;
+        let bestEnd = -Infinity;
+        for(const q of placed){
+            if(q.id === p.id) continue;
+            const endH = q.startH + q.duration;
+            if(endH <= p.startH + 1e-6 && endH > bestEnd) bestEnd = endH;
+        }
+        if(bestEnd === -Infinity){ alert('前の予定がありません'); return; }
+        const newEnd = bestEnd + p.duration;
+        if(newEnd > END_H + 1e-6){ alert('範囲外になります'); return; }
+        p.startH = bestEnd;
+        save(); renderPlaced(); renderEditTimes();
+    }
+
     function shiftAfter(deltaMin){
         const p = placed.find(x => x.id === editId);
         if(!p) return;
@@ -636,7 +645,7 @@
             bar.style.display = 'none';
         } else {
             bar.style.display = '';
-            bar.textContent = '開始時間をタップ（既存タスクをタップでその直後）';
+            bar.textContent = '開始時間をタップ';
             bar.className = 'hint';
         }
     }
