@@ -53,7 +53,6 @@
         .slot.q30 { border-top: 1px dashed #E8DFCE; }
         .slot.q15 { border-top: 1px dashed #F4F0E8; }
         .slot:active { background: rgba(0,0,0,0.03); }
-        .slot.preview { background: rgba(100,200,180,0.15); }
         .slot-label { position: absolute; left: -38px; top: -9px; font-size: 11px; font-weight: 800; color: #bbb; width: 30px; text-align: right; }
 
         /* placed blocks */
@@ -101,7 +100,6 @@
             white-space: nowrap;
             pointer-events: none;
         }
-        .hint.step2 { background: #4ECDC4; color: white; }
 
         .card { background: white; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); overflow: hidden; }
         .card-head { padding: 9px 12px; font-weight: 900; font-size: 12px; color: #888; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -290,20 +288,25 @@
         <button class="time-btn" onclick="adjustTime('end',1)">＋</button>
     </div>
     <div class="duration-row" id="edit-duration"></div>
-    <button class="modal-btn close-btn" onclick="closeEdit()">閉じる</button>
-    <div class="modal-divider"></div>
-    <div class="modal-sub-label">↓ 後続をまとめてずらす</div>
-    <div class="action-row">
-        <button class="modal-btn shift-btn" onclick="shiftAfter(-15)">−15</button>
-        <button class="modal-btn shift-btn" onclick="shiftAfter(-5)">−5</button>
-        <button class="modal-btn shift-btn" onclick="shiftAfter(5)">＋5</button>
-        <button class="modal-btn shift-btn" onclick="shiftAfter(15)">＋15</button>
+    <button class="modal-btn close-btn" id="edit-close-btn" onclick="closeEdit()">閉じる</button>
+    <button class="modal-btn" id="edit-cancel-btn" style="background:#eee;color:#666;display:none;" onclick="cancelNewPlacement()">✕ キャンセル</button>
+    <div id="edit-shift-section">
+        <div class="modal-divider"></div>
+        <div class="modal-sub-label">↓ 後続をまとめてずらす</div>
+        <div class="action-row">
+            <button class="modal-btn shift-btn" onclick="shiftAfter(-15)">−15</button>
+            <button class="modal-btn shift-btn" onclick="shiftAfter(-5)">−5</button>
+            <button class="modal-btn shift-btn" onclick="shiftAfter(5)">＋5</button>
+            <button class="modal-btn shift-btn" onclick="shiftAfter(15)">＋15</button>
+        </div>
     </div>
-    <div class="modal-divider"></div>
-    <div class="modal-sub-label">↓ おしまいの操作</div>
-    <div class="action-row">
-        <button class="modal-btn done-btn" id="done-btn" onclick="toggleDone()">✓ おわった</button>
-        <button class="modal-btn del-btn" onclick="deleteEdit()">✕ 削除</button>
+    <div id="edit-finish-section">
+        <div class="modal-divider"></div>
+        <div class="modal-sub-label">↓ おしまいの操作</div>
+        <div class="action-row">
+            <button class="modal-btn done-btn" id="done-btn" onclick="toggleDone()">✓ おわった</button>
+            <button class="modal-btn del-btn" onclick="deleteEdit()">✕ 削除</button>
+        </div>
     </div>
 </div>
 
@@ -352,9 +355,8 @@
     let editingTaskId = null;
     let editingPlacedId = null;
     let lastAutoFill = '';
-    let tapStep  = 0;   // 0=idle 1=waiting for end tap
-    let tapStart = null;
     let editId   = null;
+    let editIsNew = false;
     let editMode = false;
 
     function save(){
@@ -404,56 +406,32 @@
             slot.className = cls;
             slot.dataset.slot = s;
             if(mod === 0) slot.innerHTML = `<div class="slot-label">${Math.floor(h)}:00</div>`;
-            slot.addEventListener('click', () => onSlotTap(s));
+            slot.addEventListener('click', () => placeAt(s));
             body.appendChild(slot);
         }
     }
 
-    function onSlotTap(s){
+    const DEFAULT_DUR_MIN = 30;
+
+    function placeAt(startSlot){
         if(!selTask) return;
-
-        if(tapStep === 0){
-            tapStart = s;
-            tapStep = 1;
-            highlightPreview(s, s+1);
-            updateHint();
-        } else {
-            let startSlot = Math.min(tapStart, s);
-            let endSlot   = Math.max(tapStart, s) + 1;
-            endSlot = Math.min(endSlot, SLOTS);
-
-            placed.push({
-                id: Date.now(),
-                name: selTask.name,
-                color: selTask.color,
-                startH: slotToHour(startSlot),
-                duration: (endSlot - startSlot) * 0.25,
-                done: false
-            });
-            tapStep = 0; tapStart = null;
-            clearPreview();
-            save(); renderPlaced(); updateHint();
-        }
+        if(startSlot < 0 || startSlot >= SLOTS) return;
+        const startMin = Math.round(slotToHour(startSlot) * 60);
+        const remainMin = END_H * 60 - startMin;
+        const durMin = Math.min(DEFAULT_DUR_MIN, remainMin);
+        if(durMin < FINE_STEP_MIN) return;
+        const p = {
+            id: Date.now(),
+            name: selTask.name,
+            color: selTask.color,
+            startH: startMin / 60,
+            duration: durMin / 60,
+            done: false
+        };
+        placed.push(p);
+        save(); renderPlaced();
+        openEdit(p.id, true);
     }
-
-    function highlightPreview(from, to){
-        clearPreview();
-        document.querySelectorAll('.slot').forEach(sl => {
-            const s = +sl.dataset.slot;
-            if(s >= from && s < to) sl.classList.add('preview');
-        });
-    }
-    function clearPreview(){ document.querySelectorAll('.slot.preview').forEach(sl => sl.classList.remove('preview')); }
-
-    document.getElementById('tl-body').addEventListener('mouseover', e => {
-        if(tapStep !== 1 || !selTask) return;
-        const sl = e.target.closest('.slot');
-        if(!sl) return;
-        const s = +sl.dataset.slot;
-        const from = Math.min(tapStart, s);
-        const to   = Math.max(tapStart, s) + 1;
-        highlightPreview(from, to);
-    });
 
     // ── RENDER PLACED ──
     function layoutLanes(blocks){
@@ -522,7 +500,7 @@
                     const endH = p.startH + p.duration;
                     if(endH >= END_H - 1e-6) return;
                     const slot = Math.round((endH - START_H) * 4);
-                    onSlotTap(slot);
+                    placeAt(slot);
                 } else {
                     openEdit(p.id);
                 }
@@ -541,8 +519,9 @@
     }
 
     // ── EDIT MODAL (placed block) ──
-    function openEdit(id){
+    function openEdit(id, isNew = false){
         editId = id;
+        editIsNew = !!isNew;
         const p = placed.find(x => x.id === id);
         if(!p) return;
         const nameEl = document.getElementById('edit-name');
@@ -555,8 +534,20 @@
         dBtn.classList.toggle('done-btn', !p.done);
         dBtn.classList.toggle('undo-btn', !!p.done);
         dBtn.textContent = p.done ? '↩ もどす' : '✓ おわった';
+        document.getElementById('edit-close-btn').textContent = isNew ? '✓ OK' : '閉じる';
+        document.getElementById('edit-cancel-btn').style.display = isNew ? '' : 'none';
+        document.getElementById('edit-shift-section').style.display = isNew ? 'none' : '';
+        document.getElementById('edit-finish-section').style.display = isNew ? 'none' : '';
         document.getElementById('modal-bg').classList.add('open');
         document.getElementById('modal-card').classList.add('open');
+    }
+
+    function cancelNewPlacement(){
+        if(editIsNew && editId !== null){
+            placed = placed.filter(x => x.id !== editId);
+            save(); renderPlaced(); renderDoneCounter();
+        }
+        closeEdit();
     }
 
     function renderEditTimes(){
@@ -624,6 +615,7 @@
 
     function closeEdit(){
         editId = null;
+        editIsNew = false;
         document.getElementById('modal-bg').classList.remove('open');
         document.getElementById('modal-card').classList.remove('open');
     }
@@ -635,8 +627,8 @@
             bar.style.display = 'none';
         } else {
             bar.style.display = '';
-            if(tapStep === 0){ bar.textContent = '開始時間をタップ（既存タスクをタップでその直後）'; bar.className='hint'; }
-            else             { bar.textContent = `${fmt(slotToHour(tapStart))} 〜 終了時間をタップ`; bar.className='hint step2'; }
+            bar.textContent = '開始時間をタップ（既存タスクをタップでその直後）';
+            bar.className = 'hint';
         }
     }
 
@@ -752,7 +744,7 @@
         const id = t.id;
         tasks = tasks.filter(x => x.id !== id);
         if(selTask && selTask.id === id){
-            selTask = null; tapStep = 0; tapStart = null; clearPreview(); updateHint();
+            selTask = null; updateHint();
         }
         save();
         renderTaskList();
@@ -790,7 +782,7 @@
     }
 
     function selectTask(t){
-        selTask = t; tapStep = 0; tapStart = null; clearPreview();
+        selTask = (selTask && selTask.id === t.id) ? null : t;
         renderTaskList(); updateHint();
     }
 
@@ -950,7 +942,7 @@
 
     function resetDay(){
         if(!confirm('タイムラインを消します。タスク一覧は残ります。よろしい？')) return;
-        placed=[]; tapStep=0; tapStart=null; clearPreview();
+        placed=[];
         save(); renderPlaced(); renderDoneCounter(); updateHint();
     }
 
