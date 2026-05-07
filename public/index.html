@@ -59,7 +59,7 @@
         .block {
             position: absolute; border-radius: 8px;
             padding: 4px 8px; color: white; font-size: 13px; font-weight: 800;
-            z-index: 10; overflow: hidden; display: flex; align-items: center; justify-content: space-between;
+            z-index: 10; overflow: hidden; display: flex; align-items: flex-start; justify-content: space-between;
             min-height: 24px; cursor: pointer;
             box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
         }
@@ -440,39 +440,61 @@
         const EPS = 1e-6;
         const MIN_VISUAL_DUR = 12 / 60;
         const visualEnd = p => p.startH + Math.max(p.duration, MIN_VISUAL_DUR);
-        const arr = blocks.map(p => ({ ref: p, lane: 0, lanes: 1 }));
-        arr.sort((a, b) => a.ref.startH - b.ref.startH);
-        let cluster = [];
-        let clusterEnd = -Infinity;
-        const finalize = () => {
-            if(!cluster.length) return;
-            const laneEnds = [];
-            for(const b of cluster){
-                let put = false;
-                for(let i = 0; i < laneEnds.length; i++){
-                    if(laneEnds[i] <= b.ref.startH + EPS){
-                        b.lane = i;
-                        laneEnds[i] = visualEnd(b.ref);
-                        put = true;
-                        break;
-                    }
-                }
-                if(!put){
-                    b.lane = laneEnds.length;
-                    laneEnds.push(visualEnd(b.ref));
+        const arr = blocks.map(p => ({ ref: p, lane: 0, lanes: 1, depth: 0, parent: null }));
+        arr.sort((a, b) => {
+            if(Math.abs(a.ref.startH - b.ref.startH) > EPS) return a.ref.startH - b.ref.startH;
+            return b.ref.duration - a.ref.duration;
+        });
+        for(let i = 0; i < arr.length; i++){
+            const b = arr[i];
+            for(let j = i - 1; j >= 0; j--){
+                const a = arr[j];
+                if(a.ref.startH <= b.ref.startH + EPS && visualEnd(a.ref) >= visualEnd(b.ref) - EPS){
+                    b.parent = a;
+                    b.depth = a.depth + 1;
+                    break;
                 }
             }
-            const total = laneEnds.length;
-            cluster.forEach(b => b.lanes = total);
-            cluster = [];
-            clusterEnd = -Infinity;
-        };
-        for(const b of arr){
-            if(b.ref.startH >= clusterEnd - EPS) finalize();
-            cluster.push(b);
-            clusterEnd = Math.max(clusterEnd, visualEnd(b.ref));
         }
-        finalize();
+        const groups = new Map();
+        for(const b of arr){
+            const key = b.parent || null;
+            if(!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(b);
+        }
+        for(const group of groups.values()){
+            let cluster = [];
+            let clusterEnd = -Infinity;
+            const finalize = () => {
+                if(!cluster.length) return;
+                const laneEnds = [];
+                for(const b of cluster){
+                    let put = false;
+                    for(let i = 0; i < laneEnds.length; i++){
+                        if(laneEnds[i] <= b.ref.startH + EPS){
+                            b.lane = i;
+                            laneEnds[i] = visualEnd(b.ref);
+                            put = true;
+                            break;
+                        }
+                    }
+                    if(!put){
+                        b.lane = laneEnds.length;
+                        laneEnds.push(visualEnd(b.ref));
+                    }
+                }
+                const total = laneEnds.length;
+                cluster.forEach(b => b.lanes = total);
+                cluster = [];
+                clusterEnd = -Infinity;
+            };
+            for(const b of group){
+                if(b.ref.startH >= clusterEnd - EPS) finalize();
+                cluster.push(b);
+                clusterEnd = Math.max(clusterEnd, visualEnd(b.ref));
+            }
+            finalize();
+        }
         return arr;
     }
 
@@ -481,14 +503,26 @@
         document.querySelectorAll('.now-line').forEach(el => el.remove());
         const body = document.getElementById('tl-body');
 
-        layoutLanes(placed).forEach(({ ref: p, lane, lanes }) => {
+        layoutLanes(placed).forEach(b => {
+            const p = b.ref;
+            let leftFrac, widthFrac;
+            if(b.parent){
+                const pr = b.parent.rect;
+                const slot = pr.widthFrac * 0.5;
+                widthFrac = slot / b.lanes;
+                leftFrac = pr.leftFrac + pr.widthFrac * 0.5 + b.lane * widthFrac;
+            } else {
+                widthFrac = 1 / b.lanes;
+                leftFrac = b.lane * widthFrac;
+            }
+            b.rect = { leftFrac, widthFrac };
             const top = (p.startH - START_H) * 4 * SLOT_H;
             const h   = p.duration * 4 * SLOT_H;
-            const widthExpr = `calc((100% - 8px) / ${lanes})`;
-            const leftExpr  = `calc(4px + ${lane} * (100% - 8px) / ${lanes})`;
+            const widthExpr = `calc((100% - 8px) * ${widthFrac})`;
+            const leftExpr  = `calc(4px + (100% - 8px) * ${leftFrac})`;
             const el  = document.createElement('div');
             el.className = 'block' + (p.done ? ' done' : '');
-            el.style.cssText = `top:${top}px;height:${h}px;background:${p.color};color:${textColorFor(p.color)};left:${leftExpr};width:${widthExpr};`;
+            el.style.cssText = `top:${top}px;height:${h}px;background:${p.color};color:${textColorFor(p.color)};left:${leftExpr};width:${widthExpr};z-index:${10 + b.depth};`;
             const label = document.createElement('span');
             label.className = 'block-label';
             label.textContent = p.name;
