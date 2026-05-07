@@ -141,17 +141,27 @@ echo -n "$NEW_SECRET" | npx wrangler secret put SHARED_SECRET
 
 娘の端末側ではアプリが 401 を受けて合言葉モーダルが再表示される (開発者ツールで `localStorage.removeItem('serverPassphrase')` してリロードする方が早い場合もある)。
 
-### コードを更新したとき
+### リリース手順
 
-```bash
-npx wrangler deploy
-```
+コードを更新したら以下の順で実行する:
 
-静的アセットも自動的にアップロードされる。Service Worker 経由のキャッシュを更新したい場合は `public/version.js` の `APP_VERSION` を上げてからデプロイ (上げないと旧キャッシュが残るブラウザがある)。
+1. `public/version.js` の `APP_VERSION` を上げる (PWA / Service Worker のキャッシュ世代を更新するため。上げないと旧キャッシュが残るブラウザがある)
+   - バグ修正のみ: **patch** (例: `1.3.4 → 1.3.5`)
+   - 機能追加・改善・UI 変更: **minor** (例: `1.3.4 → 1.4.0`)
 
-```js
-const APP_VERSION = '1.1.0';  // → '1.2.0' など
-```
+   ```js
+   const APP_VERSION = '1.4.0';
+   ```
+
+2. デプロイ
+
+   ```bash
+   npx wrangler deploy
+   ```
+
+   静的アセットも自動的にアップロードされる。
+
+Claude Code で開いているなら `/release` スキルが上記をまとめて行う (bump 種別を提案 → 確認 → `version.js` 更新 → `wrangler deploy` → コミットメッセージ提案)。
 
 ## 娘の端末セットアップ
 
